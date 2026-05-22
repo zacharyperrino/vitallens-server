@@ -1,0 +1,135 @@
+// ─── Weekly Health Report Route ───────────────────────────────
+// POST /api/weekly-report/generate?userId=
+// GET  /api/weekly-report/latest?userId=
+
+import { Router } from "express";
+import { createClient } from "@supabase/supabase-js";
+import { buildFullContext, snapshotToText } from "../services/context-builder.js";
+import dotenv from "dotenv";
+import { WeeklyReportSchema, validateOrThrow } from '../services/ai-validators.js';
+dotenv.config();
+import { heavyAILimiter } from '../services/ai-limiters.js';
+import { fetchWithRetry } from '../services/ai-fetch.js';
+
+const router = Router();
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
+
+const WELLNESS_SYSTEM_PROMPT = `You are a wellness pattern observer for VitalLens, a personal health journaling app. Observe and describe patterns in logged data using plain, supportive language. Never name medical conditions, never use clinical diagnostic language, never provide medical advice. For any pattern persisting more than two weeks, suggest the user discuss it with a healthcare provider. Always frame observations as things the user may want to notice or explore — never as findings or diagnoses.`;
+
+const REPORT_PROMPT = `You are a personal wellness journal summarizer. Generate a warm, observational weekly patterns summary based on the user's logged data. Be specific and data-grounded. Use the user's actual numbers.
+
+Write a weekly patterns summary with these sections:
+1. HEADLINE: One sentence summary of the week — what stood out most
+2. WINS: 2-3 things that went well this week (with specific numbers from their logs)
+3. PATTERNS TO EXPLORE: 2-3 patterns worth paying attention to (with specific numbers, framed as observations not problems)
+4. TOP CONNECTION: The single most interesting connection noticed across different areas of their data
+5. FOCUS: One specific, achievable lifestyle suggestion for next week
+6. SCORE: Overall wellness week score out of 100 (based on logging consistency, trends, data quality)
+
+Keep it concise — each section 1-3 sentences. Use the user's actual logged data, not generic advice. Use language like "your logs suggest", "we noticed", "something worth exploring" — never clinical or diagnostic language. If a pattern has persisted for 14+ days, gently suggest it may be worth mentioning to a healthcare provider.
+
+Respond ONLY with valid JSON, no markdown:
+{
+  "headline": "one sentence week summary",
+  "week_score": 75,
+  "wins": ["specific win with numbers", "specific win", "optional third win"],
+  "patterns_to_explore": ["specific pattern with numbers framed as observation", "specific pattern", "optional third pattern"],
+  "top_connection": "most interesting cross-domain pattern noticed",
+  "focus": "one specific actionable lifestyle suggestion for next week",
+  "data_completeness": "percentage of domains with sufficient data (0-100)"
+}`;
+
+// ── POST /api/weekly-report/generate ─────────────────────────
+router.post("/weekly-report/generate", heavyAILimiter, async (req, res) => {
+    try {
+        const apiKey = process.env.ANTHROPIC_API_KEY;
+        if (!apiKey) return res.status(500).json({ error: "Anthropic API key not configured." });
+
+        const { userId } = req.body;
+        if (!userId) return res.status(400).json({ error: "userId required." });
+
+        console.log(`[WeeklyReport] Generating for ${userId.slice(0, 8)}`);
+
+        const snapshot = await buildFullContext(userId, { window: 7 });
+        const contextText = snapshotToText(snapshot);
+
+        const claudeRes = await fetchWithRetry(ANTHROPIC_API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+            body: JSON.stringify({
+                model: "claude-sonnet-4-20250514",
+                max_tokens: 1500,
+                system: WELLNESS_SYSTEM_PROMPT,
+                messages: [{ role: "user", content: `${REPORT_PROMPT}\n\nUSER DATA (last 7 days):\n${contextText}` }],
+            }),
+            signal: AbortSignal.timeout(30000),
+        }, { routeName: 'WeeklyReport' });
+
+        if (!claudeRes.ok) throw new Error(`Claude API error: ${claudeRes.status}`);
+        const claudeData = await claudeRes.json();
+        const raw = claudeData.content?.[0]?.text || "";
+        const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+
+        let report;
+        try { report = JSON.parse(cleaned); }
+        catch { return res.status(422).json({ error: "Failed to parse report." }); }
+
+try { report = validateOrThrow(WeeklyReportSchema, report, 'WeeklyReport'); }
+catch (e) { return res.status(422).json({ error: e.message }); }
+
+        // Normalize gaps field for backwards compatibility
+        if (!report.gaps && report.patterns_to_explore) {
+            report.gaps = report.patterns_to_explore;
+        }
+
+        // Store in Supabase
+        const { data: saved, error } = await supabase
+            .from("weekly_reports")
+            .insert({
+                user_id: userId,
+                headline: report.headline,
+                week_score: report.week_score,
+                wins: report.wins,
+                gaps: report.patterns_to_explore || report.gaps,
+                top_correlation: report.top_connection || report.top_correlation,
+                focus: report.focus,
+                data_completeness: report.data_completeness,
+                report_data: report,
+                week_of: new Date().toISOString().split("T")[0],
+            })
+            .select()
+            .single();
+
+        if (error) console.warn("[WeeklyReport] Save failed:", error.message);
+
+        console.log(`[WeeklyReport] Generated — score: ${report.week_score}`);
+        res.json({ report, id: saved?.id });
+
+    } catch (err) {
+        console.error("[WeeklyReport] Failed:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── GET /api/weekly-report/latest ────────────────────────────
+router.get("/weekly-report/latest", async (req, res) => {
+    try {
+        const { userId } = req.query;
+        if (!userId) return res.status(400).json({ error: "userId required." });
+
+        const { data, error } = await supabase
+            .from("weekly_reports")
+            .select("*")
+            .eq("user_id", userId)
+            .order("week_of", { ascending: false })
+            .limit(4);
+
+        if (error) throw error;
+        res.json({ reports: data || [] });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+export default router;
