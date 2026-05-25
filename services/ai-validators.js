@@ -67,6 +67,14 @@ export const WeeklyReportSchema = z.object({
   data_completeness: z.union([z.string(), z.number()]).optional(),
 });
 
+export const BiomarkerSchema = z.object({
+  overallScore: z.number().min(0).max(100),
+  confidence: z.enum(['low', 'moderate', 'high']).optional(),
+  riskTier: z.enum(['Low', 'Moderate', 'High']).optional(),
+  recommendations: z.array(z.string().max(500)).max(10).optional(),
+  disclaimer: z.string().optional(),
+}).passthrough();
+
 export function validateOrThrow(schema, data, routeName) {
   const result = schema.safeParse(data);
   if (!result.success) {
