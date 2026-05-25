@@ -28,6 +28,7 @@ import tcmProfileRoutes from './routes/tcm-profile.js';
 import healthCopilotRoutes from './routes/health-copilot.js';
 import weeklyReportRoutes from './routes/weekly-report.js';
 import predictionEngineRoutes from './routes/prediction-engine.js';
+import userDataRoutes from './routes/user-data.js';
 
 dotenv.config();
 
@@ -73,6 +74,7 @@ app.use('/api', tcmProfileRoutes);
 app.use('/api', healthCopilotRoutes);
 app.use('/api', weeklyReportRoutes);
 app.use('/api', predictionEngineRoutes);
+app.use('/api', userDataRoutes);
 
 // ─── Health Check ────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
