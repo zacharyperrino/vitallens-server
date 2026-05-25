@@ -29,6 +29,8 @@ import healthCopilotRoutes from './routes/health-copilot.js';
 import weeklyReportRoutes from './routes/weekly-report.js';
 import predictionEngineRoutes from './routes/prediction-engine.js';
 import userDataRoutes from './routes/user-data.js';
+import './services/queue.js';
+import billingRoutes from './routes/billing.js';
 
 dotenv.config();
 
@@ -36,6 +38,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // ─── Middleware ──────────────────────────────────────────────
+app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -75,6 +78,7 @@ app.use('/api', healthCopilotRoutes);
 app.use('/api', weeklyReportRoutes);
 app.use('/api', predictionEngineRoutes);
 app.use('/api', userDataRoutes);
+app.use('/api', billingRoutes);
 
 // ─── Health Check ────────────────────────────────────────────
 app.get('/api/health', (req, res) => {

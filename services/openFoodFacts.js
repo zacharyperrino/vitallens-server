@@ -33,6 +33,41 @@ export async function fetchProduct(barcode) {
 }
 
 /**
+ * Search Open Food Facts by product name.
+ * Used as fallback when USDA doesn't have a branded/packaged item.
+ * @param {string} query — product name or brand + name
+ * @param {number} limit — max results (default 5)
+ * @returns {array} — normalized products array
+ */
+export async function searchProducts(query, limit = 5) {
+    const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=${limit}&fields=product_name,brands,nutriments,nutriscore_grade,nova_group,additives_tags,ingredients_text,image_front_url`;
+
+    try {
+        const response = await fetch(url, {
+            headers: { 'User-Agent': USER_AGENT },
+            signal: AbortSignal.timeout(8000),
+        });
+
+        if (!response.ok) {
+            console.warn(`[OFF] Search HTTP ${response.status} for: ${query}`);
+            return [];
+        }
+
+        const data = await response.json();
+        const products = data.products || [];
+
+        return products
+            .filter(p => p.product_name && p.nutriments?.['energy-kcal_100g'])
+            .map(p => normalizeProduct('unknown', p, {}))
+            .slice(0, limit);
+
+    } catch (err) {
+        console.warn('[OFF] Search failed:', err.message);
+        return [];
+    }
+}
+
+/**
  * Normalize Open Food Facts response into our schema shape.
  */
 function normalizeProduct(barcode, p, raw) {

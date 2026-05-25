@@ -13,6 +13,7 @@
     "@sentry/node": "^10.53.1",
     "@supabase/supabase-js": "^2.101.1",
     "@upstash/redis": "^1.38.0",
+    "bullmq": "^5.77.2",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
@@ -20,6 +21,7 @@
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
     "pg": "^8.12.0",
+    "stripe": "^22.1.1",
     "zod": "^4.4.3"
   }
 }
