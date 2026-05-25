@@ -421,6 +421,23 @@ ${environmentContext}${correlationContext}${predictionContext}`;
         });
         claudeMessages.push({ role: "user", content: message });
 
+
+        
+        // ── Model routing — Haiku for simple intents, Sonnet for analysis ──
+function selectModel(message) {
+    const lower = message.toLowerCase();
+    const heavyPatterns = [
+        'pattern', 'correlation', 'trend', 'analysis', 'report',
+        'predict', 'insight', 'summary', 'week', 'why', 'explain',
+        'compare', 'optimize', 'recommend', 'suggest'
+    ];
+    const isHeavy = heavyPatterns.some(p => lower.includes(p));
+    return isHeavy ? 'claude-sonnet-4-20250514' : 'claude-haiku-4-5-20251001';
+}
+
+const selectedModel = selectModel(message);
+console.log(`[HealthCopilot] Model: ${selectedModel} for query: "${message.slice(0, 50)}"`);
+
         let response = await fetchWithRetry(ANTHROPIC_API_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
