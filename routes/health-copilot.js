@@ -422,7 +422,7 @@ ${environmentContext}${correlationContext}${predictionContext}`;
         claudeMessages.push({ role: "user", content: message });
 
 
-        
+
         // ── Model routing — Haiku for simple intents, Sonnet for analysis ──
 function selectModel(message) {
     const lower = message.toLowerCase();
@@ -442,7 +442,7 @@ console.log(`[HealthCopilot] Model: ${selectedModel} for query: "${message.slice
             method: "POST",
             headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
             body: JSON.stringify({
-                model: "claude-sonnet-4-20250514",
+                model: selectedModel,
                 max_tokens: 2000,
                 system: systemPrompt,
                 tools: TOOLS,
@@ -475,7 +475,7 @@ console.log(`[HealthCopilot] Model: ${selectedModel} for query: "${message.slice
                 method: "POST",
                 headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
                 body: JSON.stringify({
-                    model: "claude-sonnet-4-20250514",
+                    model: selectedModel,
                     max_tokens: 2000,
                     system: systemPrompt,
                     tools: TOOLS,

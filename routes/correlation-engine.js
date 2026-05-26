@@ -121,8 +121,37 @@ catch (e) { return res.status(422).json({ error: e.message }); }
             actionable: analysis.top_insight,
         });
 
-        console.log(`[CorrelationEngine] Found ${analysis.correlations?.length || 0} patterns`);
-        res.json({ analysis, snapshot: { dataQuality: analysis.data_quality, insufficientDomains: analysis.insufficient_domains } });
+        // ── Secondary language safety check via Haiku ─────────────────
+try {
+    const safetyCheck = await fetchWithRetry(ANTHROPIC_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({
+            model: "claude-haiku-4-5-20251001",
+            max_tokens: 200,
+            messages: [{
+                role: "user",
+                content: `Review this wellness app output for any clinical diagnostic language, condition names, or medical advice. Reply with only "PASS" if it is safe, or "FLAG: [reason]" if it contains clinical language.\n\nOutput to review:\n${JSON.stringify(analysis.correlations?.slice(0, 3))}\n\nSummary: ${analysis.summary}`
+            }]
+        }),
+        signal: AbortSignal.timeout(10000),
+    }, { routeName: 'CorrelationSafetyCheck' });
+
+    if (safetyCheck.ok) {
+        const safetyData = await safetyCheck.json();
+        const safetyResult = safetyData.content?.[0]?.text || '';
+        if (safetyResult.startsWith('FLAG')) {
+            console.warn(`[CorrelationEngine] Safety check flagged output: ${safetyResult}`);
+        } else {
+            console.log(`[CorrelationEngine] Safety check passed`);
+        }
+    }
+} catch (err) {
+    console.warn('[CorrelationEngine] Safety check failed (non-blocking):', err.message);
+}
+
+console.log(`[CorrelationEngine] Found ${analysis.correlations?.length || 0} patterns`);
+res.json({ analysis, snapshot: { dataQuality: analysis.data_quality, insufficientDomains: analysis.insufficient_domains } });
 
     } catch (err) {
         console.error("[CorrelationEngine] Failed:", err.message);
