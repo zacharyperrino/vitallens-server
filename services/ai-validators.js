@@ -75,6 +75,30 @@ export const BiomarkerSchema = z.object({
   disclaimer: z.string().optional(),
 }).passthrough();
 
+// ── Food Scanner (GPT-4o Vision) ──────────────────────────────
+export const FoodDetectionSchema = z.object({
+    detections: z.array(z.object({
+        name: z.string().max(200),
+        calories: z.number().min(0).max(5000),
+        protein: z.number().min(0).max(500).optional(),
+        carbs: z.number().min(0).max(500).optional(),
+        fat: z.number().min(0).max(500).optional(),
+        grams: z.number().min(0).max(5000).optional(),
+    })).max(50),
+    restaurant_detected: z.string().optional(),
+    meal_description: z.string().max(500).optional(),
+}).passthrough();
+
+// ── Lab Parser (GPT-4o) ───────────────────────────────────────
+export const LabParseSchema = z.object({
+    panel_type: z.string().max(100).optional(),
+    markers: z.record(z.object({
+        value: z.union([z.number(), z.string()]),
+        unit: z.string().max(50).optional(),
+        status: z.enum(['normal', 'low', 'high', 'critical']).optional(),
+    })).optional(),
+}).passthrough();
+
 export function validateOrThrow(schema, data, routeName) {
   const result = schema.safeParse(data);
   if (!result.success) {
