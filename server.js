@@ -5,6 +5,7 @@ import cors from 'cors';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import helmet from 'helmet';
 
 import barcodeRoutes from './routes/barcode.js';
 import ocrRoutes from './routes/ocr.js';
@@ -44,6 +45,7 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
+app.use(helmet());
 
 // ─── Rate Limiter ────────────────────────────────────────────
 const globalLimiter = rateLimit({
