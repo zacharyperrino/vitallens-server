@@ -388,7 +388,13 @@ const supplements = allSubstances.filter(s => !s.category || s.category === "sup
 
 if (prescriptions.length > 0) correlationContext += "PRESCRIPTION MEDICATIONS: " + prescriptions.map(s => sanitizeUserInput(s.name, 'medication') + (s.dose ? " " + s.dose : "")).join(", ") + "\n";
 if (recreational.length > 0) correlationContext += "RECREATIONAL SUBSTANCES: " + recreational.map(s => sanitizeUserInput(s.name, 'substance') + (s.dose ? " " + s.dose : "")).join(", ") + "\n";
-if (supplements.length > 0) correlationContext += "SUPPLEMENTS: " + supplements.map(s => sanitizeUserInput(s.name, 'supplement') + (s.dose ? " " + s.dose : "")).join(", ") + "\n";
+if (supplements.length > 0) {
+    correlationContext += "SUPPLEMENTS: " + supplements.map(s => {
+        const name = sanitizeUserInput(s.name, 'supplement');
+        const examineUrl = `https://examine.com/supplements/${s.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')}/`;
+        return `${name} (research: ${examineUrl})`;
+    }).join(", ") + "\n";
+}
 if (prescriptions.length > 0 || recreational.length > 0 || supplements.length > 0) correlationContext += "\n";
 
             if (corrRes.data?.length > 0) {
