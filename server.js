@@ -31,6 +31,7 @@ import predictionEngineRoutes from './routes/prediction-engine.js';
 import userDataRoutes from './routes/user-data.js';
 import './services/queue.js';
 import billingRoutes from './routes/billing.js';
+import pushRoutes from './routes/push.js';
 
 dotenv.config();
 
@@ -79,7 +80,7 @@ app.use('/api', weeklyReportRoutes);
 app.use('/api', predictionEngineRoutes);
 app.use('/api', userDataRoutes);
 app.use('/api', billingRoutes);
-
+app.use('/api', pushRoutes);
 // ─── Health Check ────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', service: 'vitallens-api', uptime: process.uptime() });
