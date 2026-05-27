@@ -38,6 +38,7 @@ Find connections across these dimensions:
 5. EXERCISE → RECOVERY: Does training volume connect with sleep quality?
 6. NUTRITION CONSISTENCY → OUTCOMES: Does logging consistency connect with better wellness scores?
 7. TCM PATTERNS: Do traditional wellness patterns align with logged lifestyle data?
+8. HYGIENE PRODUCTS → SKIN CHECK-INS: Do weeks with high-concern ingredient products correlate with lower skin wellness scores?
 
 Respond ONLY with valid JSON, no markdown:
 {

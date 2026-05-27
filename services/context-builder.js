@@ -183,7 +183,7 @@ export async function buildFullContext(userId, options = {}) {
         profileRes, supplementsRes, labResultsRes, tcmProfileRes,
         todayNutritionRes, biomarkerScansRes, environmentRes,
         recentNutritionRes, recentMealsRes, recentSleepRes, recentExerciseRes,
-        olderNutritionRes, olderSleepRes, olderExerciseRes,
+        olderNutritionRes, olderSleepRes, olderExerciseRes, hygieneRes,
     ] = await Promise.allSettled([
         supabase.from("health_profile").select("*").eq("user_id", userId).single(),
         supabase.from("supplement_logs").select("name, dose, frequency").eq("user_id", userId).eq("active", true),
@@ -201,6 +201,7 @@ export async function buildFullContext(userId, options = {}) {
         supabase.from("daily_nutrition").select("date, calories, protein, carbs, fat, fiber").eq("user_id", userId).gte("date", dateStr(window)).lt("date", dateStr(7)).order("date", { ascending: true }),
         supabase.from("sleep_log").select("hours, quality, date").eq("user_id", userId).gte("date", dateStr(window)).lt("date", dateStr(7)).order("date", { ascending: true }),
         supabase.from("exercise_log").select("type, duration, logged_at").eq("user_id", userId).gte("logged_at", windowStart).lt("logged_at", sevenDaysAgo),
+        supabase.from("hygiene_scans").select("product_name, brand, safety_score, concerns, scanned_at").eq("user_id", userId).gte("scanned_at", sevenDaysAgo).order("scanned_at", { ascending: false }).limit(10),
     ]);
 
     const profile = profileRes.status === "fulfilled" ? profileRes.value.data : null;
@@ -219,6 +220,7 @@ export async function buildFullContext(userId, options = {}) {
     const olderNutrition = olderNutritionRes.status === "fulfilled" ? olderNutritionRes.value.data || [] : [];
     const olderSleep = olderSleepRes.status === "fulfilled" ? olderSleepRes.value.data || [] : [];
     const olderExercise = olderExerciseRes.status === "fulfilled" ? olderExerciseRes.value.data || [] : [];
+    const hygiene = hygieneRes.status === "fulfilled" ? hygieneRes.value.data || [] : [];
 
     const dailyNutrition = [...olderNutrition, ...recentNutrition];
     const sleepData = [...olderSleep, ...recentSleep];
@@ -300,6 +302,7 @@ export async function buildFullContext(userId, options = {}) {
         },
         environment: { latestLocation: latestEnv?.location, latestAQI: latestEnv?.aqi, latestAQICategory: latestEnv?.aqi_category, avgAQI, highAQIDays, waterRisk: latestEnv?.water_risk },
         labs: { panelsCount: labResults.length, flaggedMarkers, mostRecentPanel: labResults[0]?.panel_type || null },
+        hygiene,
         tcm: tcmProfile ? { constitution: tcmProfile.constitution, totalFoodsAnalyzed: tcmProfile.total_foods_analyzed } : null,
         olderPeriodSummary: {
             nutrition: olderNutritionSummary,
@@ -347,6 +350,7 @@ export function snapshotToText(s) {
     if (s.biomarkers.byType.length > 0) t += "\n";
     if (s.labs.flaggedMarkers.length > 0) t += "LAB FLAGS: " + s.labs.flaggedMarkers.map(m => m.name + " " + m.value + " " + (m.unit || "") + " (" + m.status + ")").join(", ") + "\n\n";
     if (s.environment.latestAQI) t += "ENVIRONMENT: AQI " + s.environment.latestAQI + " (" + s.environment.latestAQICategory + "), avg " + (s.environment.avgAQI || "?") + ", " + s.environment.highAQIDays + " high-AQI days\n\n";
+    if (s.hygiene?.length > 0) t += "HYGIENE SCANS (last 7 days): " + s.hygiene.map(h => `${h.product_name} (score: ${h.safety_score})`).join(", ") + "\n\n";
     if (s.tcm) t += "TCM CONSTITUTION (" + s.tcm.totalFoodsAnalyzed + " foods): " + s.tcm.constitution + "\n\n";
     return t;
 }
