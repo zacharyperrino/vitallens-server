@@ -10,6 +10,7 @@ import { PredictionSchema, validateOrThrow } from '../services/ai-validators.js'
 dotenv.config();
 import { heavyAILimiter } from '../services/ai-limiters.js';
 import { fetchWithRetry } from '../services/ai-fetch.js';
+import { checkAndIncrementUsage } from '../services/usage-gates.js';
 
 const router = Router();
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
@@ -79,9 +80,13 @@ router.post("/predictions/run", heavyAILimiter, async (req, res) => {
         if (!apiKey) return res.status(500).json({ error: "Anthropic API key not configured." });
 
         const { userId } = req.body;
-        if (!userId) return res.status(400).json({ error: "userId required." });
+if (!userId) return res.status(400).json({ error: "userId required." });
 
-        console.log(`[PredictionEngine] Running for ${userId.slice(0, 8)}`);
+// ── Usage gate ────────────────────────────────────────────
+const gate = await checkAndIncrementUsage(userId, 'prediction_run');
+if (!gate.allowed) return res.status(429).json({ error: gate.message, upgradeRequired: true });
+
+console.log(`[PredictionEngine] Running for ${userId.slice(0, 8)}`);
 
         const snapshot = await buildFullContext(userId, { window: 30 });
         const contextText = snapshotToText(snapshot);

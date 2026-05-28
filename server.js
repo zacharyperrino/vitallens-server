@@ -35,6 +35,7 @@ import billingRoutes from './routes/billing.js';
 import pushRoutes from './routes/push.js';
 import ouraRoutes from './routes/oura.js';
 import hygieneRoutes from './routes/hygiene.js';
+import usageRoutes from './routes/usage.js';
 
 dotenv.config();
 
@@ -87,7 +88,7 @@ app.use('/api', billingRoutes);
 app.use('/api', pushRoutes);
 app.use('/api', ouraRoutes);
 app.use('/api', hygieneRoutes);
-
+app.use('/api', usageRoutes);
 // ─── Health Check ────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', service: 'vitallens-api', uptime: process.uptime() });

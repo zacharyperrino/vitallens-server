@@ -7,6 +7,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import { checkAndIncrementUsage } from '../services/usage-gates.js';
 dotenv.config();
 
 const router = Router();
@@ -265,11 +266,17 @@ Rules:
 - If no food detected: {"foods":[],"meal_description":"No food detected","meal_context":"unknown","cuisine_type":"unknown","meal_setting":"unknown","scale_anchor_found":"none","scale_anchor_notes":"","portion_calibration":"unknown","restaurant_detected":"none","restaurant_confidence":0}`;
 
 // ── Route ─────────────────────────────────────────────────────
-
 router.post('/vision-scan', visionLimiter, upload.single('image'), async (req, res, next) => {
     try {
         const apiKey = process.env.OPENAI_API_KEY;
         if (!apiKey) return res.status(500).json({ error: 'OpenAI API key not configured.' });
+
+        // ── Usage gate ────────────────────────────────────────
+        const userId = req.body?.userId;
+        if (userId) {
+            const gate = await checkAndIncrementUsage(userId, 'food_vision_scan');
+            if (!gate.allowed) return res.status(429).json({ error: gate.message, upgradeRequired: true });
+        }
 
         let base64Image, mimeType;
         if (req.file) {
@@ -291,7 +298,6 @@ router.post('/vision-scan', visionLimiter, upload.single('image'), async (req, r
             console.log('[Vision] Correction content:\n' + correctionHints);
         }
 
-        // Inject today's already-logged meals to avoid duplicate detection
         const todayMeals = req.body?.todayMeals;
         if (todayMeals) {
             try {

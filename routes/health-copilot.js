@@ -10,6 +10,7 @@ dotenv.config();
 import { copilotLimiter } from '../services/ai-limiters.js';
 import { fetchWithRetry } from '../services/ai-fetch.js';
 import { sanitizeContextFields, sanitizeUserInput } from '../services/sanitize.js';
+import { checkAndIncrementUsage } from '../services/usage-gates.js';
 
 const router = Router();
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
@@ -319,7 +320,11 @@ router.post("/health-copilot", copilotLimiter, async (req, res) => {
         if (!apiKey) return res.status(500).json({ error: "Anthropic API key not configured." });
 
         const { userId, message, history = [] } = req.body;
-        if (!userId || !message) return res.status(400).json({ error: "userId and message required." });
+if (!userId || !message) return res.status(400).json({ error: "userId and message required." });
+
+// ── Usage gate ────────────────────────────────────────────
+const gate = await checkAndIncrementUsage(userId, 'ai_chat');
+if (!gate.allowed) return res.status(429).json({ error: gate.message, upgradeRequired: true });
 
         console.log(`[HealthCopilot] Query from ${userId.slice(0, 8)}: "${message.slice(0, 80)}"`);
 

@@ -10,6 +10,7 @@ import { WeeklyReportSchema, validateOrThrow } from '../services/ai-validators.j
 dotenv.config();
 import { heavyAILimiter } from '../services/ai-limiters.js';
 import { fetchWithRetry } from '../services/ai-fetch.js';
+import { checkAndIncrementUsage } from '../services/usage-gates.js';
 
 const router = Router();
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
@@ -47,9 +48,13 @@ router.post("/weekly-report/generate", heavyAILimiter, async (req, res) => {
         if (!apiKey) return res.status(500).json({ error: "Anthropic API key not configured." });
 
         const { userId } = req.body;
-        if (!userId) return res.status(400).json({ error: "userId required." });
+if (!userId) return res.status(400).json({ error: "userId required." });
 
-        console.log(`[WeeklyReport] Generating for ${userId.slice(0, 8)}`);
+// ── Usage gate ────────────────────────────────────────────
+const gate = await checkAndIncrementUsage(userId, 'weekly_report');
+if (!gate.allowed) return res.status(429).json({ error: gate.message, upgradeRequired: true });
+
+console.log(`[WeeklyReport] Generating for ${userId.slice(0, 8)}`);
 
         const snapshot = await buildFullContext(userId, { window: 7 });
         const contextText = snapshotToText(snapshot);
@@ -138,7 +143,13 @@ router.get("/weekly-report/narrative", heavyAILimiter, async (req, res) => {
     try {
         const apiKey = process.env.ANTHROPIC_API_KEY;
         const { userId } = req.query;
-        if (!userId) return res.status(400).json({ error: "userId required." });
+if (!userId) return res.status(400).json({ error: "userId required." });
+
+// ── Usage gate ────────────────────────────────────────────
+const narrativeGate = await checkAndIncrementUsage(userId, 'narrative');
+if (!narrativeGate.allowed) return res.status(429).json({ error: narrativeGate.message, upgradeRequired: true });
+
+// Pull last 12 weekly reports
 
         // Pull last 12 weekly reports
         const { data: reports, error } = await supabase

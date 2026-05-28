@@ -66,6 +66,13 @@ router.post('/parse-labs', labLimiter, upload.single('pdf'), async (req, res, ne
         const apiKey = process.env.OPENAI_API_KEY;
         if (!apiKey) return res.status(500).json({ error: 'OpenAI API key not configured.' });
 
+        // ── Usage gate ────────────────────────────────────────
+        const userId = req.body?.userId;
+        if (userId) {
+            const gate = await checkAndIncrementUsage(userId, 'lab_upload');
+            if (!gate.allowed) return res.status(429).json({ error: gate.message, upgradeRequired: true });
+        }
+
         let labText = '';
 
         if (req.file) {
