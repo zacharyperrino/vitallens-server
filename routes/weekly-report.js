@@ -132,4 +132,110 @@ router.get("/weekly-report/latest", async (req, res) => {
     }
 });
 
+// ── GET /api/weekly-report/narrative?userId= ──────────────────
+// Generates a longitudinal wellness narrative from the last 12 weeks
+router.get("/weekly-report/narrative", heavyAILimiter, async (req, res) => {
+    try {
+        const apiKey = process.env.ANTHROPIC_API_KEY;
+        const { userId } = req.query;
+        if (!userId) return res.status(400).json({ error: "userId required." });
+
+        // Pull last 12 weekly reports
+        const { data: reports, error } = await supabase
+            .from("weekly_reports")
+            .select("week_of, week_score, headline, wins, gaps, top_correlation, focus, data_completeness")
+            .eq("user_id", userId)
+            .order("week_of", { ascending: false })
+            .limit(12);
+
+        if (error) throw error;
+        if (!reports || reports.length < 2) {
+            return res.json({ narrative: null, message: "Log at least 2 weeks of data to see your wellness story." });
+        }
+
+        // Check if we have a cached narrative from the last 7 days
+        const { data: cached } = await supabase
+            .from("weekly_reports")
+            .select("narrative, narrative_generated_at")
+            .eq("user_id", userId)
+            .order("week_of", { ascending: false })
+            .limit(1)
+            .single();
+
+        if (cached?.narrative && cached?.narrative_generated_at) {
+            const age = Date.now() - new Date(cached.narrative_generated_at).getTime();
+            if (age < 7 * 24 * 60 * 60 * 1000) {
+                return res.json({ narrative: cached.narrative, cached: true });
+            }
+        }
+
+        const reportsText = reports.reverse().map((r, i) => 
+            `Week ${i + 1} (${r.week_of}): Score ${r.week_score}/100 — ${r.headline}`
+        ).join('\n');
+
+        const firstScore = reports[0]?.week_score || 0;
+        const lastScore = reports[reports.length - 1]?.week_score || 0;
+        const avgScore = Math.round(reports.reduce((s, r) => s + (r.week_score || 0), 0) / reports.length);
+        const trend = lastScore > firstScore + 5 ? 'improving' : lastScore < firstScore - 5 ? 'declining' : 'stable';
+
+        const NARRATIVE_PROMPT = `You are a warm, observational wellness journal narrator. Based on the user's last ${reports.length} weeks of logged wellness data, write a short "your wellness story so far" narrative. 
+
+Use supportive, non-clinical language. Frame everything as observations from their logs, not medical assessments. Never name conditions or diagnoses.
+
+Weekly data:
+${reportsText}
+
+Overall trend: ${trend} (started at ${firstScore}, now at ${lastScore}, avg ${avgScore})
+
+Write a narrative with:
+1. STORY: 2-3 sentences describing their overall wellness journey — what patterns have emerged over time
+2. STRONGEST_TREND: The single most consistent pattern across all weeks
+3. BIGGEST_SHIFT: The most notable change between early and recent weeks
+4. NEXT_CHAPTER: One encouraging observation about where their patterns seem to be heading
+
+Respond ONLY with valid JSON, no markdown:
+{
+  "story": "2-3 sentence narrative of their wellness journey",
+  "strongest_trend": "most consistent pattern observed",
+  "biggest_shift": "most notable change over time",
+  "next_chapter": "encouraging observation about trajectory",
+  "weeks_analyzed": ${reports.length},
+  "avg_score": ${avgScore},
+  "trend": "${trend}"
+}`;
+
+        const claudeRes = await fetchWithRetry(ANTHROPIC_API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+            body: JSON.stringify({
+                model: "claude-sonnet-4-20250514",
+                max_tokens: 1000,
+                system: WELLNESS_SYSTEM_PROMPT,
+                messages: [{ role: "user", content: NARRATIVE_PROMPT }],
+            }),
+        });
+
+        if (!claudeRes.ok) throw new Error(`Claude API error: ${claudeRes.status}`);
+        const claudeData = await claudeRes.json();
+        const raw = claudeData.content?.[0]?.text || '';
+        const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        const narrative = JSON.parse(cleaned);
+
+        // Cache the narrative on the most recent report
+        await supabase
+            .from("weekly_reports")
+            .update({ narrative, narrative_generated_at: new Date().toISOString() })
+            .eq("user_id", userId)
+            .order("week_of", { ascending: false })
+            .limit(1);
+
+        console.log(`[WeeklyReport] Narrative generated for ${userId.slice(0, 8)} — ${reports.length} weeks analyzed`);
+        res.json({ narrative, cached: false });
+
+    } catch (err) {
+        console.error('[WeeklyReport] Narrative failed:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 export default router;
