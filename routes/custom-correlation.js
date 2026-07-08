@@ -15,7 +15,7 @@ dotenv.config();
 const router = Router();
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
-const MODEL = 'claude-sonnet-4-20250514';
+const MODEL = 'claude-haiku-4-5-20251001';
 
 const SYSTEM_PROMPT = `You are a careful wellness pattern observer for VitalLens. You describe possible relationships between two logged lifestyle variables using plain, non-clinical language. You never diagnose, never name medical conditions, and you are honest about small sample sizes and weak or absent relationships.`;
 

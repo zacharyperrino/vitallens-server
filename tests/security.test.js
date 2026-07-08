@@ -32,36 +32,16 @@ afterAll(async () => {
   await clearLink();
 });
 
-describe('practitioner/client-data — consent gate (HIGHEST PRIORITY)', () => {
-  it('returns 403 and NO client data when there is no active consent link', async () => {
-    await clearLink();
+describe('practitioner portal is FROZEN (not mounted)', () => {
+  // The practitioner portal was unmounted pending counsel review + a proper
+  // consent flow. It must not be reachable — no cross-user data path exists.
+  it('practitioner/client-data returns 404 (route frozen)', async () => {
     const res = await request(app)
       .get(`/api/practitioner/client-data?practitionerId=${A.id}&clientId=${B.id}`)
       .set('Authorization', `Bearer ${A.token}`);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(404);
     expect(res.body.meals).toBeUndefined();
     expect(res.body.sleep).toBeUndefined();
-  });
-
-  it('returns 200 with the client payload ONLY when an active link exists', async () => {
-    await clearLink();
-    await admin.from('practitioner_links').insert({
-      practitioner_id: A.id, client_id: B.id, status: 'active', created_at: new Date().toISOString(),
-    });
-    const res = await request(app)
-      .get(`/api/practitioner/client-data?practitionerId=${A.id}&clientId=${B.id}`)
-      .set('Authorization', `Bearer ${A.token}`);
-    expect(res.status).toBe(200);
-    expect(res.body.clientId).toBe(B.id);
-    expect(Array.isArray(res.body.meals)).toBe(true);
-    await clearLink();
-  });
-
-  it('returns 403 when the caller token identity does not match the claimed practitionerId', async () => {
-    const res = await request(app)
-      .get(`/api/practitioner/client-data?practitionerId=${A.id}&clientId=${B.id}`)
-      .set('Authorization', `Bearer ${B.token}`); // B pretends to be practitioner A
-    expect(res.status).toBe(403);
   });
 });
 

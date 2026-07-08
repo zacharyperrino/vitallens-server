@@ -351,7 +351,7 @@ router.post('/biomarker-scan', biomarkerLimiter, upload.single('image'), async (
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 3000,
         system: WELLNESS_SYSTEM_PROMPT,
         messages: [{
@@ -383,7 +383,7 @@ router.post('/biomarker-scan', biomarkerLimiter, upload.single('image'), async (
 
     const claudeData = await claudeRes.json();
 
-    await trackCost({ userId, route: 'biomarker-scan', model: 'claude-sonnet-4-20250514', inputTokens: claudeData.usage?.input_tokens || 0, outputTokens: claudeData.usage?.output_tokens || 0, hasImage: true, meta: { scanType } });
+    await trackCost({ userId, route: 'biomarker-scan', model: 'claude-haiku-4-5-20251001', inputTokens: claudeData.usage?.input_tokens || 0, outputTokens: claudeData.usage?.output_tokens || 0, hasImage: true, meta: { scanType } });
 
     const raw = claudeData.content?.[0]?.text || '';
     const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();

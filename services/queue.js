@@ -78,7 +78,7 @@ Respond ONLY with valid JSON, no markdown:
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-haiku-4-5-20251001',
             max_tokens: 2000,
             system: WELLNESS_SYSTEM_PROMPT,
             messages: [{ role: 'user', content: `${CORRELATION_PROMPT}\n\nUSER DATA:\n${contextText}` }],
@@ -143,7 +143,7 @@ Respond ONLY with valid JSON, no markdown:
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-haiku-4-5-20251001',
             max_tokens: 1500,
             system: WELLNESS_SYSTEM_PROMPT,
             messages: [{ role: 'user', content: `${REPORT_PROMPT}\n\nUSER DATA (last 7 days):\n${contextText}` }],

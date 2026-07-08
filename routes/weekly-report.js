@@ -63,7 +63,7 @@ console.log(`[WeeklyReport] Generating for ${userId.slice(0, 8)}`);
             method: "POST",
             headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
             body: JSON.stringify({
-                model: "claude-sonnet-4-20250514",
+                model: "claude-haiku-4-5-20251001",
                 max_tokens: 1500,
                 system: WELLNESS_SYSTEM_PROMPT,
                 messages: [{ role: "user", content: `${REPORT_PROMPT}\n\nUSER DATA (last 7 days):\n${contextText}` }],
@@ -74,7 +74,7 @@ console.log(`[WeeklyReport] Generating for ${userId.slice(0, 8)}`);
         if (!claudeRes.ok) throw new Error(`Claude API error: ${claudeRes.status}`);
         const claudeData = await claudeRes.json();
 
-        await trackCost({ userId, route: 'weekly-report', model: 'claude-sonnet-4-20250514', inputTokens: claudeData.usage?.input_tokens || 0, outputTokens: claudeData.usage?.output_tokens || 0 });
+        await trackCost({ userId, route: 'weekly-report', model: 'claude-haiku-4-5-20251001', inputTokens: claudeData.usage?.input_tokens || 0, outputTokens: claudeData.usage?.output_tokens || 0 });
 
         const raw = claudeData.content?.[0]?.text || "";
         const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
@@ -223,7 +223,7 @@ Respond ONLY with valid JSON, no markdown:
             method: "POST",
             headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
             body: JSON.stringify({
-                model: "claude-sonnet-4-20250514",
+                model: "claude-haiku-4-5-20251001",
                 max_tokens: 1000,
                 system: WELLNESS_SYSTEM_PROMPT,
                 messages: [{ role: "user", content: NARRATIVE_PROMPT }],
@@ -234,7 +234,7 @@ Respond ONLY with valid JSON, no markdown:
         if (!claudeRes.ok) throw new Error(`Claude API error: ${claudeRes.status}`);
         const claudeData = await claudeRes.json();
 
-        await trackCost({ userId, route: 'weekly-report-narrative', model: 'claude-sonnet-4-20250514', inputTokens: claudeData.usage?.input_tokens || 0, outputTokens: claudeData.usage?.output_tokens || 0 });
+        await trackCost({ userId, route: 'weekly-report-narrative', model: 'claude-haiku-4-5-20251001', inputTokens: claudeData.usage?.input_tokens || 0, outputTokens: claudeData.usage?.output_tokens || 0 });
 
         const raw = claudeData.content?.[0]?.text || '';
         const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();

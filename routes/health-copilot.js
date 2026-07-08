@@ -454,14 +454,11 @@ ${environmentContext}${correlationContext}${predictionContext}${ragContext}`;
 
         // ── Model routing — Haiku for simple intents, Sonnet for analysis ──
 function selectModel(message) {
-    const lower = message.toLowerCase();
-    const heavyPatterns = [
-        'pattern', 'correlation', 'trend', 'analysis', 'report',
-        'predict', 'insight', 'summary', 'week', 'why', 'explain',
-        'compare', 'optimize', 'recommend', 'suggest'
-    ];
-    const isHeavy = heavyPatterns.some(p => lower.includes(p));
-    return isHeavy ? 'claude-sonnet-4-20250514' : 'claude-haiku-4-5-20251001';
+    // Chat runs on Haiku by design — it is fast, capable, and ~4x cheaper than
+    // Sonnet. We do NOT auto-escalate on common words (the old logic sent most
+    // health questions to Sonnet, the main source of surprise cost). Heavy
+    // multi-domain analysis has its own dedicated, separately-gated endpoints.
+    return 'claude-haiku-4-5-20251001';
 }
 
 const selectedModel = selectModel(message);

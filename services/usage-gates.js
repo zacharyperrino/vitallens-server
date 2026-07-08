@@ -5,6 +5,7 @@
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 dotenv.config();
+import { checkSpendGuard } from './spend-guard.js';
 
 const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -66,8 +67,16 @@ function getWindowStart(window) {
 
 // ── Check and increment usage ─────────────────────────────────
 export async function checkAndIncrementUsage(userId, feature) {
-    // Premium users bypass all gates
     const premium = await isPremium(userId);
+
+    // Hard spend ceiling — applies to EVERYONE (including premium) before any
+    // model call. This is the backstop against surprise bills.
+    const spend = await checkSpendGuard(userId, premium);
+    if (!spend.allowed) {
+        return { allowed: false, premium, message: spend.message, spendCapReached: true };
+    }
+
+    // Premium users bypass per-feature count gates (but not the spend cap above)
     if (premium) return { allowed: true, premium: true };
 
     const limit = FREE_LIMITS[feature];

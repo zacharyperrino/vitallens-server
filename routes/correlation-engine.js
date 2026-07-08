@@ -82,7 +82,7 @@ console.log(`[CorrelationEngine] Running analysis for ${userId.slice(0, 8)}`);
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
     body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 2000,
         system: WELLNESS_SYSTEM_PROMPT,
         messages: [{ role: "user", content: `${CORRELATION_PROMPT}\n\nUSER DATA:\n${contextText}` }],
@@ -93,7 +93,7 @@ console.log(`[CorrelationEngine] Running analysis for ${userId.slice(0, 8)}`);
         if (!claudeRes.ok) throw new Error(`Claude API error: ${claudeRes.status}`);
         const claudeData = await claudeRes.json();
 
-        await trackCost({ userId, route: 'correlation-engine', model: 'claude-sonnet-4-20250514', inputTokens: claudeData.usage?.input_tokens || 0, outputTokens: claudeData.usage?.output_tokens || 0 });
+        await trackCost({ userId, route: 'correlation-engine', model: 'claude-haiku-4-5-20251001', inputTokens: claudeData.usage?.input_tokens || 0, outputTokens: claudeData.usage?.output_tokens || 0 });
 
         const raw = claudeData.content?.[0]?.text || "";
         const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
