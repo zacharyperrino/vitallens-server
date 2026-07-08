@@ -32,7 +32,6 @@ import healthCopilotRoutes from './routes/health-copilot.js';
 import weeklyReportRoutes from './routes/weekly-report.js';
 import predictionEngineRoutes from './routes/prediction-engine.js';
 import userDataRoutes from './routes/user-data.js';
-import { setupQueues } from './services/queue.js';
 import billingRoutes from './routes/billing.js';
 import pushRoutes from './routes/push.js';
 import ouraRoutes from './routes/oura.js';
@@ -48,10 +47,6 @@ import genomicsRoutes from './routes/genomics.js';
 import consentsRoutes from './routes/consents.js';
 
 dotenv.config();
-
-// Create the BullMQ queues so this API process can ADD jobs. Workers
-// that PROCESS jobs run separately (see worker.js / `npm run worker`).
-setupQueues();
 
 const app = express();
 const PORT = process.env.PORT || 3001;

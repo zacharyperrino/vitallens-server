@@ -30,7 +30,7 @@ const USER_TABLES = [
   'supplement_logs', 'lab_results', 'biomarker_scans', 'body_scans',
   'stool_scans', 'scan_history', 'health_correlations', 'health_predictions',
   'health_insights', 'weekly_reports', 'weekly_scores', 'chat_history',
-  'environment_logs', 'environmental_log', 'tcm_profile', 'health_profile',
+  'environment_logs', 'tcm_profile', 'health_profile',
   'user_goals', 'meal_memory', 'food_corrections', 'portion_corrections',
   'wearable_connections', 'hr_readings', 'health_events',
 ];
