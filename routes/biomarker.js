@@ -33,12 +33,12 @@ const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 
 const PROMPTS = {
 
-  face: `This is for educational wellness screening purposes only, not medical diagnosis or treatment.
+  face: `This is for general wellness and educational purposes only. This is not medical advice and does not diagnose, screen for, or assess any disease.
 
 You are a wellness and skincare AI assistant analyzing a facial photograph. Perform a thorough, systematic skin wellness assessment using evidence-based skincare knowledge, functional medicine principles, and traditional wellness frameworks.
 
 STEP 1 — FITZPATRICK SKIN TYPE (assess first — affects all other readings):
-Type I: Very fair, always burns, never tans — high UV sensitivity, melanoma risk
+Type I: Very fair, always burns, never tans — higher UV sensitivity
 Type II: Fair, usually burns, sometimes tans — prone to sun damage
 Type III: Medium, sometimes burns, usually tans — moderate sun resilience
 Type IV: Olive, rarely burns, always tans — PIH (post-inflammatory hyperpigmentation) risk
@@ -79,12 +79,12 @@ STEP 5 — BREAKOUT PATTERN:
 - Mixed: multiple patterns present
 
 STEP 6 — WELLNESS SIGNALS:
-Eyebrow outer-third thinning (thyroid signal), lip condition (cracked corners=B2/iron, pallor=anemia), facial symmetry, overall puffiness (kidney/lymphatic), skin tone anomalies (pallor=anemia, yellowing=liver, flushing=rosacea/hormonal).
+lip condition (dryness, cracked corners), facial symmetry, overall puffiness (kidney/lymphatic), skin tone variation and evenness.
 
 Respond ONLY with valid JSON, no markdown:
 {
   "fitzpatrick_type": "I|II|III|IV|V|VI",
-  "fitzpatrick_notes": "observed skin type characteristics and clinical implications",
+  "fitzpatrick_notes": "observed skin type characteristics",
   "overall_skin_score": 78,
   "skin_barrier": "intact|compromised_mild|compromised_moderate|compromised_severe",
   "skin_barrier_notes": "description of barrier status",
@@ -136,157 +136,7 @@ Respond ONLY with valid JSON, no markdown:
   "disclaimer": "Educational wellness screening tool only. Not a medical diagnosis. Consult a dermatologist for any skin concerns."
 }`,
 
-  eye: `This is for educational wellness screening purposes only, not medical diagnosis or treatment.
-
-You are a wellness AI assistant analyzing an eye photograph for general ocular wellness indicators.
-
-CONJUNCTIVAL CHECK: color (normal pink vs pale vs irritated), pallor severity.
-SCLERAL CHECK: color (normal vs yellowing tinge vs bloodshot), vascularity.
-PERIORBITAL CHECK: puffiness, dark circles (tone: purple/blue vs brown vs hollow), yellow deposits near inner corner.
-EYELID CHECK: drooping, swelling.
-
-Respond ONLY with valid JSON, no markdown:
-{
-  "overall_eye_score": 82,
-  "conjunctiva": { "color": "normal_pink|pale_mild|pale_moderate|pale_severe|irritated_red", "pallor_present": false, "pallor_severity": "none|mild|moderate|severe", "pallor_notes": "description", "wellness_note": "what this may reflect" },
-  "sclera": { "color": "white_normal|yellow_tinge_mild|yellow_tinge_moderate|bloodshot_mild|bloodshot_moderate|bloodshot_severe", "yellowing_present": false, "yellowing_severity": "none|mild|moderate", "vascularity": "normal|mildly_increased|significantly_increased", "red_patch_present": false, "wellness_note": "what this may reflect" },
-  "periorbital": { "puffiness": "none|mild|moderate|severe", "puffiness_pattern": "none|bilateral|unilateral|upper_lid|lower_lid|general", "dark_circles": "none|mild|moderate|severe", "dark_circle_tone": "none|purple_blue|brown|hollow|mixed", "xanthelasma_present": false, "wellness_notes": ["observations"] },
-  "eyelids": { "drooping_present": false, "drooping_severity": "none|mild|moderate", "other_findings": "description" },
-  "wellness_signals": [{ "indicator": "observation", "significance": "what this may relate to", "urgency": "monitor|discuss_with_doctor|seek_attention", "confidence": "low|moderate|high" }],
-  "overallScore": 82,
-  "riskTier": "Low|Moderate|High",
-  "recommendations": ["Specific actionable wellness recommendation"],
-  "suggested_followup": ["Suggested tests or consultations"],
-  "confidence": "low|moderate|high",
-  "image_quality": "good|fair|poor",
-  "disclaimer": "Wellness screening tool only. Not a medical diagnosis. Consult an eye care professional for any concerns."
-}`,
-
-  skin: `This is for educational wellness screening purposes only, not medical diagnosis or treatment.
-
-You are a skincare wellness AI assistant performing comprehensive dermatological wellness screening on a skin photograph.
-
-STEP 1 — FITZPATRICK SKIN TYPE:
-Type I-II: Very fair to fair — high UV sensitivity, easy to assess redness
-Type III-IV: Medium to olive — moderate UV resilience, PIH risk
-Type V-VI: Brown to dark — conditions present differently, hyperpigmentation common
-Note: adjust lesion color assessment and pigmentation interpretation based on type.
-
-STEP 2 — ABCDE LESION FRAMEWORK (if any lesion visible):
-A — Asymmetry: one half unlike the other (concerning if present)
-B — Border: irregular, ragged, notched, or blurred edges (concerning if present)
-C — Color: variation in shades — tan, brown, black, red, white, blue (multiple colors concerning)
-D — Diameter: estimate relative to known anchors — over 6mm warrants evaluation
-E — Evolution: note if user should monitor for change; prompt for history if ambiguous
-
-STEP 3 — INFLAMMATION PATTERN:
-- Psoriasis-like: well-defined red plaques with silvery/white scale, Koebner phenomenon
-- Eczema-like: poorly defined red, scaly, itchy patches, flexural/crease distribution
-- Contact reaction: geometric or linear distribution suggesting external trigger
-- Seborrheic-like: greasy yellowish scale on erythematous base
-- Follicular: inflammation centered on hair follicles
-- Rosacea-like: central face, telangiectasia, papules, flushing
-- Mixed: multiple patterns present
-
-STEP 4 — HYPERPIGMENTATION PATTERN:
-- Post-inflammatory (PIH): follows previous lesion or injury distribution
-- Melasma-like: symmetric, sun-exposed areas, hormonal/UV pattern
-- Sun damage: random discrete spots, sun-exposed distribution
-- Diffuse: even darkening suggesting systemic or medication cause
-
-STEP 5 — TEXTURE & STRUCTURAL FINDINGS:
-- Keratosis pilaris: rough follicular bumps on upper arms, thighs, cheeks
-- Xerosis: generalized dryness, fine white scaling
-- Lichenification: thickened leathery skin from chronic scratching
-- Skin atrophy: thinned translucent appearance, easy bruising signs
-
-STEP 6 — STRETCH MARKS:
-- Fresh/active: red or purple — recent stretching, collagen disruption
-- Mature/old: white or silver — established, collagen remodeled
-- Distribution: abdomen, hips, thighs, breasts, upper arms — note pattern
-
-STEP 7 — VASCULAR ASSESSMENT:
-- Telangiectasia: fine dilated capillaries, spider-like
-- Spider angioma: central vessel with radiating branches (liver signal if multiple)
-- Purpura/petechiae: non-blanching spots (coagulation/platelet signal if widespread)
-- Livedo reticularis: mottled net-like pattern (circulation/autoimmune signal)
-
-Respond ONLY with valid JSON, no markdown:
-{
-  "overall_skin_score": 85,
-  "fitzpatrick_type": "I|II|III|IV|V|VI",
-  "fitzpatrick_notes": "observed characteristics and implications for assessment",
-  "lesion_present": false,
-  "lesion_assessment": {
-    "present": false,
-    "count": 0,
-    "asymmetry": "symmetric|mildly_asymmetric|asymmetric",
-    "border": "regular|slightly_irregular|irregular",
-    "color": "uniform|mild_variation|significant_variation",
-    "diameter_estimate": "under_6mm|approximately_6mm|over_6mm|cannot_assess",
-    "evolution_note": "user should monitor for changes or describe history",
-    "abcde_concern_count": 0,
-    "likely_pattern": "common_benign|worth_evaluation|multiple_concerns|cannot_determine",
-    "recommended_action": "routine_monitoring|watch_for_changes|professional_evaluation_recommended|prompt_evaluation"
-  },
-  "inflammation": {
-    "present": false,
-    "pattern": "none|psoriasis_like|eczema_like|contact_reaction|seborrheic_like|follicular|rosacea_like|mixed",
-    "severity": "none|mild|moderate|severe",
-    "distribution": "localized|regional|widespread",
-    "wellness_note": "what this pattern may suggest systemically"
-  },
-  "hyperpigmentation": {
-    "present": false,
-    "pattern": "none|post_inflammatory|melasma_like|sun_damage|diffuse|mixed",
-    "severity": "none|mild|moderate|significant",
-    "wellness_note": "hormonal, UV, or inflammatory cause considerations"
-  },
-  "texture_findings": {
-    "overall": "smooth|rough|scaly|bumpy|lichenified|atrophic",
-    "keratosis_pilaris": false,
-    "xerosis": false,
-    "lichenification": false,
-    "atrophy": false,
-    "notes": "description of texture findings"
-  },
-  "stretch_marks": {
-    "present": false,
-    "stage": "none|fresh_active|mature_old|mixed",
-    "distribution": "description of areas affected",
-    "wellness_note": "rapid weight change, growth, hormonal, or pregnancy signals"
-  },
-  "scarring": {
-    "present": false,
-    "type": "none|atrophic|hypertrophic|keloid|mixed",
-    "severity": "none|mild|moderate|significant"
-  },
-  "skin_condition": {
-    "hydration": "dry|normal|oily|dehydrated",
-    "sun_exposure_evident": false,
-    "sun_damage_severity": "none|mild|moderate|significant",
-    "other_findings": "any additional observations"
-  },
-  "vascular_observations": {
-    "telangiectasia": false,
-    "spider_angioma": false,
-    "purpura_petechiae": false,
-    "livedo_reticularis": false,
-    "severity": "none|mild|moderate|significant",
-    "notes": "description of vascular findings",
-    "wellness_note": "what vascular patterns may suggest"
-  },
-  "wellness_signals": [{ "indicator": "observation", "significance": "what this may suggest", "urgency": "monitor|discuss_with_doctor|seek_attention", "confidence": "low|moderate|high" }],
-  "overallScore": 85,
-  "riskTier": "Low|Moderate|High",
-  "recommendations": ["Specific actionable skincare recommendation"],
-  "suggested_followup": ["Suggested professional evaluation if warranted"],
-  "confidence": "low|moderate|high",
-  "image_quality": "good|fair|poor",
-  "disclaimer": "Wellness screening tool only. Not a medical diagnosis. Any skin concern should be evaluated by a dermatologist."
-}`,
-
-  body: `This is for educational wellness screening purposes only, not medical diagnosis or treatment.
+  body: `This is for general wellness and educational purposes only. This is not medical advice and does not diagnose, screen for, or assess any disease.
 
 You are a wellness, movement, and functional health AI assistant analyzing a body photograph. Perform a comprehensive postural, structural, composition, and wellness screening assessment.
 
@@ -306,7 +156,7 @@ Spine:
 - Hyperkyphosis: excessive thoracic rounding (upper back hump)
 - Hyperlordosis: excessive lumbar arch (sway back)
 - Flat back: reduced natural curves
-- Lateral deviation: C-curve or S-curve pattern — scoliosis indicator
+- Lateral deviation: C-curve or S-curve postural pattern
 
 Pelvis:
 - Neutral: ASIS and PSIS level
@@ -319,7 +169,7 @@ Hips, Knees, Feet:
 - Knee alignment: neutral | valgus (knock-knee) | varus (bow-leg) | hyperextension
 - Foot position: neutral | pronated (flat) | supinated (high arch) | toeing out | toeing in
 
-STEP 2 — SCOLIOSIS SCREENING:
+STEP 2 — SPINAL SYMMETRY OBSERVATION:
 Look for: shoulder height asymmetry, hip height asymmetry, visible lateral spinal deviation, rib cage asymmetry (one side more prominent), waistline asymmetry. Note C-curve vs S-curve pattern if lateral deviation visible.
 
 STEP 3 — ANTERIOR PELVIC TILT INDICATORS:
@@ -339,18 +189,18 @@ STEP 5 — BREATHING PATTERN (if chest/torso visible):
 STEP 6 — BODY COMPOSITION & WELLNESS:
 - Build type: lean | athletic | average | heavier_set
 - Fat distribution:
-  Android (central/abdominal): apple shape — associated with insulin resistance, metabolic syndrome risk
-  Gynoid (hips/thighs): pear shape — lower metabolic risk
+  Android (central/abdominal): apple-shape distribution
+  Gynoid (hips/thighs): pear-shape distribution
   Mixed: both patterns
   Lean: minimal visible fat
 - Muscle development: well_developed | moderate | low | asymmetric
-- Visible muscle loss: note atrophy areas if present (temporal, thenar eminence, quadriceps)
+- Muscle development balance across regions
 - Vascular visibility: prominent veins suggest low body fat or dehydration
 
 STEP 7 — LYMPHATIC & FLUID SIGNALS:
-- Ankle/lower leg puffiness: lymphatic congestion, venous insufficiency, kidney signals
-- Hand puffiness: lymphatic or kidney signals
-- General facial/body puffiness: cortisol, kidney, dietary sodium, thyroid signals
+- Ankle/lower leg puffiness: general fluid-retention appearance
+- Hand puffiness: general fluid-retention appearance
+- General facial/body puffiness appearance
 
 STEP 8 — SYMMETRY FULL ASSESSMENT:
 Shoulder level difference, hip level difference, apparent arm length difference, apparent leg length difference, overall structural symmetry rating.
@@ -432,7 +282,7 @@ Respond ONLY with valid JSON, no markdown:
   "disclaimer": "Wellness screening tool only. Not a medical diagnosis. Consult a physiotherapist or physician for a full musculoskeletal assessment."
 }`,
 
-  tongue: `This is for educational wellness screening purposes only, not medical diagnosis or treatment.
+  tongue: `This is for general wellness and educational purposes only. This is not medical advice and does not diagnose, screen for, or assess any disease.
 
 You are a wellness AI assistant analyzing a tongue photograph using traditional wellness frameworks and nutritional knowledge.
 
@@ -454,39 +304,8 @@ Respond ONLY with valid JSON, no markdown:
   "suggested_followup": ["Suggested wellness test or consultation"],
   "confidence": "low|moderate|high",
   "image_quality": "good|fair|poor",
-  "disclaimer": "Educational wellness screening tool only. Traditional wellness frameworks are not substitutes for medical evaluation."
+  "disclaimer": "General wellness information only. Not medical advice and not a diagnosis."
 }`,
-
-  nail: `This is for educational wellness screening purposes only, not medical diagnosis or treatment.
-
-You are a wellness AI assistant analyzing fingernail photographs for general nail and wellness indicators.
-
-NAIL COLOR: pink (normal), pale/white (nutritional/circulation), yellow (fungal/lymphatic), blue (circulation), brown streak (worth evaluation), horizontal grooves (past illness/stress).
-NAIL SHAPE: normal, clubbing (worth attention), spoon nails (iron wellness), horizontal ridges (past illness timing).
-NAIL SURFACE: smooth (normal), pitting (skin wellness patterns), separation (thyroid/fungal), brittle (nutritional wellness).
-LUNULA: visible/absent/enlarged, color (white normal/red/blue).
-FUNGAL PATTERN: yellow-brown thickening, white patches, inflammation.
-
-Respond ONLY with valid JSON, no markdown:
-{
-  "overall_nail_score": 80,
-  "nail_color": "normal_pink|pale|yellow|green_tinge|poor_circulation_blue|brown_streak|white_pattern|mixed",
-  "color_pattern": "uniform|mostly_white_pink_tip|horizontal_bands|half_half|brown_streak|other",
-  "color_wellness_note": "what the color may suggest",
-  "shape": { "morphology": "normal|clubbed|spoon_shaped|pincer|beau_lines|other", "clubbing_present": false, "clubbing_grade": "none|mild|moderate|severe", "clubbing_wellness_note": "what this may suggest", "spoon_shape_present": false, "beau_lines_present": false, "beau_lines_notes": "timing estimate if present" },
-  "surface": { "overall": "smooth|pitted|ridged|rough_texture|brittle|separation_present", "pitting_present": false, "separation_present": false, "severity": "none|mild|moderate|severe" },
-  "lunula": { "visible": true, "size": "normal|absent|enlarged", "color": "white_normal|red|blue|other" },
-  "nail_fold": { "cuticle": "intact_normal|ragged|absent", "redness_present": false, "infection_signs": false, "other_findings": "description" },
-  "fungal_pattern": { "suspected": false, "pattern": "none|distal_thickening|proximal_white|surface_white|candida_like", "severity": "none|mild|moderate|severe", "nails_affected": "description" },
-  "wellness_signals": [{ "indicator": "observation", "significance": "what this may suggest", "urgency": "monitor|discuss_with_doctor|seek_attention", "confidence": "low|moderate|high", "wellness_areas": ["list of wellness areas"] }],
-  "overallScore": 80,
-  "riskTier": "Low|Moderate|High",
-  "recommendations": ["Specific actionable recommendation"],
-  "suggested_followup": ["Suggested wellness test or consultation"],
-  "confidence": "low|moderate|high",
-  "image_quality": "good|fair|poor",
-  "disclaimer": "Educational wellness screening tool only. Nail observations require professional examination. Not a medical diagnosis."
-}`
 
 };
 
@@ -499,6 +318,12 @@ router.post('/biomarker-scan', biomarkerLimiter, upload.single('image'), async (
 
     const scanType = req.body?.scanType || 'face';
     const userId = req.body?.userId || null;
+    // Wellness-observation scan types only. Clinical/condition-inference modes
+    // (eye, skin, nail) are retired and hard-rejected here, not just hidden in the UI.
+    const ALLOWED_SCANS = ['face', 'body', 'tongue'];
+    if (!ALLOWED_SCANS.includes(scanType)) {
+      return res.status(400).json({ error: 'Unsupported scan type.' });
+    }
     const prompt = PROMPTS[scanType];
     if (!prompt) return res.status(400).json({ error: `Invalid scanType: ${scanType}` });
 

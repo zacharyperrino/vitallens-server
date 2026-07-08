@@ -57,7 +57,16 @@ const PORT = process.env.PORT || 3001;
 
 // ─── Middleware ──────────────────────────────────────────────
 app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
-app.use(cors());
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
+    .split(',').map(o => o.trim());
+app.use(cors({
+    origin: (origin, cb) => {
+        // Allow same-origin/no-origin (mobile apps, curl) and allow-listed web origins.
+        if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+        return cb(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
@@ -103,6 +112,17 @@ app.use('/api', billingRoutes);
 
 // Protected — requireAuth applies to every route below this line
 app.use('/api', requireAuth);
+
+// ─── Ownership guard ─────────────────────────────────────────
+// One seal for every authenticated route, current and future: if a
+// request names a userId anywhere, it must be the caller's own.
+app.use('/api', (req, res, next) => {
+    const claimed = req.query?.userId || req.body?.userId;
+    if (claimed && claimed !== req.user.id) {
+        return res.status(403).json({ error: 'Forbidden.' });
+    }
+    next();
+});
 
 app.use('/api', barcodeRoutes);
 app.use('/api', ocrRoutes);

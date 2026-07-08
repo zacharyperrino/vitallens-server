@@ -8,7 +8,7 @@ const router = Router();
 const nutritionLimiter = rateLimit({ windowMs: 60 * 1000, max: 200 });
 
 const USDA_BASE = 'https://api.nal.usda.gov/fdc/v1';
-const USDA_API_KEY = process.env.USDA_API_KEY || 'ZKckGyvQ7ffyybJQvUj9Ue3AgJbXySrcbfgSEhor';
+const USDA_API_KEY = process.env.USDA_API_KEY || 'DEMO_KEY';
 
 router.get('/nutrition/search', nutritionLimiter, async (req, res) => {
     const { query, grams = 100 } = req.query;

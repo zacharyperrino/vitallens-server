@@ -122,3 +122,39 @@ describe('requireSelf blocks cross-user access', () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe('global ownership guard covers previously-unguarded routes', () => {
+  // These routes never had requireSelf; the app-wide guard must still block
+  // any request that names another user's id in query or body.
+  const getRoutes = [
+    '/api/health-profile',
+    '/api/supplements',
+    '/api/user-goals',
+    '/api/biomarker-history',
+    '/api/meal-memory',
+    '/api/hygiene/history',
+  ];
+  for (const route of getRoutes) {
+    it(`${route}: 403 when User B requests User A via query`, async () => {
+      const res = await request(app)
+        .get(`${route}?userId=${A.id}`)
+        .set('Authorization', `Bearer ${B.token}`);
+      expect(res.status).toBe(403);
+    });
+  }
+
+  it('health-profile POST: 403 when User B writes User A via body', async () => {
+    const res = await request(app)
+      .post('/api/health-profile')
+      .set('Authorization', `Bearer ${B.token}`)
+      .send({ userId: A.id, height_cm: 180 });
+    expect(res.status).toBe(403);
+  });
+
+  it('own request still succeeds (guard does not block self)', async () => {
+    const res = await request(app)
+      .get(`/api/health-profile?userId=${A.id}`)
+      .set('Authorization', `Bearer ${A.token}`);
+    expect(res.status).not.toBe(403);
+  });
+});

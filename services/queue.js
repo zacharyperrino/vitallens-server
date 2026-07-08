@@ -18,8 +18,8 @@ dotenv.config();
 // ── Redis connection for BullMQ ───────────────────────────────
 // BullMQ requires ioredis-compatible connection
 const connection = {
-    host: 'sensible-rooster-132693.upstash.io',
-    port: 6379,
+    host: process.env.UPSTASH_REDIS_HOST || 'sensible-rooster-132693.upstash.io',
+    port: Number(process.env.UPSTASH_REDIS_PORT) || 6379,
     password: process.env.UPSTASH_REDIS_REST_TOKEN,
     tls: {},
 };
