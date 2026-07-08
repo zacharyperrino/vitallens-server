@@ -9,7 +9,9 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 dotenv.config();
 import { fetchWithRetry } from '../services/ai-fetch.js';
+import { trackCost } from '../services/cost-tracker.js';
 
+import { WELLNESS_SYSTEM_PROMPT } from '../services/prompts.js';
 const router = Router();
 
 const upload = multer({
@@ -496,6 +498,7 @@ router.post('/biomarker-scan', biomarkerLimiter, upload.single('image'), async (
     if (!apiKey) return res.status(500).json({ error: 'Anthropic API key not configured.' });
 
     const scanType = req.body?.scanType || 'face';
+    const userId = req.body?.userId || null;
     const prompt = PROMPTS[scanType];
     if (!prompt) return res.status(400).json({ error: `Invalid scanType: ${scanType}` });
 
@@ -514,6 +517,7 @@ router.post('/biomarker-scan', biomarkerLimiter, upload.single('image'), async (
 
     console.log(`[Biomarker] ${scanType} scan requested`);
 
+    // IMAGE PRIVACY: image sent directly to provider, never stored locally
     const claudeRes = await fetchWithRetry(ANTHROPIC_API_URL, {
       method: 'POST',
       headers: {
@@ -553,6 +557,9 @@ router.post('/biomarker-scan', biomarkerLimiter, upload.single('image'), async (
     }
 
     const claudeData = await claudeRes.json();
+
+    await trackCost({ userId, route: 'biomarker-scan', model: 'claude-sonnet-4-20250514', inputTokens: claudeData.usage?.input_tokens || 0, outputTokens: claudeData.usage?.output_tokens || 0, hasImage: true, meta: { scanType } });
+
     const raw = claudeData.content?.[0]?.text || '';
     const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 

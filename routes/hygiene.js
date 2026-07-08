@@ -5,7 +5,7 @@
 import { Router } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import rateLimit from 'express-rate-limit';
-import { fetchBeautyProduct, analyzeBeautyIngredients } from '../services/openBeautyFacts.js';
+import { fetchBeautyProduct } from '../services/openBeautyFacts.js';
 import { lightLimiter } from '../services/ai-limiters.js';
 import dotenv from 'dotenv';
 dotenv.config();

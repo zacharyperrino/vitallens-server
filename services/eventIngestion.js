@@ -123,4 +123,6 @@ export const ingest = {
     labResult: (userId, data, sourceId) => ingestEvent(userId, 'lab_result', data, sourceId, new Date(data.collected_at || Date.now())),
     productScan: (userId, data, sourceId) => ingestEvent(userId, 'product_scan', data, sourceId, new Date(data.scanned_at || Date.now())),
     symptom: (userId, data) => ingestEvent(userId, 'symptom', data, null, new Date()),
+    cycle: (userId, data, sourceId) => ingestEvent(userId, 'cycle', data, sourceId, new Date(data.date || Date.now())),
+    medication: (userId, data, sourceId) => ingestEvent(userId, 'medication', data, sourceId, new Date(data.started_at || Date.now())),
 };

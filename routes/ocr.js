@@ -42,6 +42,7 @@ router.post('/ocr-parse', upload.single('image'), async (req, res, next) => {
             }],
         };
 
+        // IMAGE PRIVACY: image sent directly to provider, never stored locally
         const visionRes = await fetch(visionUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

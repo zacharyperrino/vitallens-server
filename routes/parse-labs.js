@@ -10,10 +10,9 @@ import { Router } from 'express';
 import multer from 'multer';
 import rateLimit from 'express-rate-limit';
 import { execSync } from 'child_process';
-import { writeFileSync, unlinkSync, existsSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
 import dotenv from 'dotenv';
+import { checkAndIncrementUsage } from '../services/usage-gates.js';
+import { trackCost } from '../services/cost-tracker.js';
 dotenv.config();
 
 const router = Router();
@@ -79,22 +78,22 @@ router.post('/parse-labs', labLimiter, upload.single('pdf'), async (req, res, ne
             const file = req.file;
 
             if (file.mimetype === 'application/pdf') {
-                // Extract text from PDF using pdftotext if available, otherwise base64 to GPT-4o vision
-                const tmpPath = join(tmpdir(), `lab-${Date.now()}.pdf`);
-                writeFileSync(tmpPath, file.buffer);
-
+                // IMAGE PRIVACY: PDF is streamed to pdftotext via stdin and never
+                // written to disk — text extraction happens entirely in memory.
                 try {
-                    labText = execSync(`pdftotext "${tmpPath}" -`, { timeout: 10000 }).toString();
-                    unlinkSync(tmpPath);
+                    labText = execSync('pdftotext - -', {
+                        input: file.buffer,
+                        timeout: 10000,
+                        maxBuffer: 20 * 1024 * 1024,
+                    }).toString();
                 } catch (pdfErr) {
                     // pdftotext not available — send PDF as image to GPT-4o Vision
-                    if (existsSync(tmpPath)) unlinkSync(tmpPath);
                     console.log('[LabParser] pdftotext unavailable, using vision API');
-                    return await parsePdfWithVision(file.buffer, file.mimetype, apiKey, res);
+                    return await parsePdfWithVision(file.buffer, file.mimetype, apiKey, res, userId);
                 }
             } else if (file.mimetype.startsWith('image/')) {
                 // Image of lab report — use vision
-                return await parsePdfWithVision(file.buffer, file.mimetype, apiKey, res);
+                return await parsePdfWithVision(file.buffer, file.mimetype, apiKey, res, userId);
             } else {
                 // Plain text
                 labText = file.buffer.toString('utf-8');
@@ -110,7 +109,7 @@ router.post('/parse-labs', labLimiter, upload.single('pdf'), async (req, res, ne
         }
 
         // Send to GPT-4o for parsing
-        const parsed = await parseLabText(labText, apiKey);
+        const parsed = await parseLabText(labText, apiKey, userId);
         res.json(parsed);
 
     } catch (err) {
@@ -118,7 +117,9 @@ router.post('/parse-labs', labLimiter, upload.single('pdf'), async (req, res, ne
     }
 });
 
-async function parseLabText(text, apiKey) {
+async function parseLabText(text, apiKey, userId) {
+    // IMAGE PRIVACY: only extracted lab text is sent to the provider — no image
+    // or PDF binary leaves this server, and nothing is stored locally.
     const response = await fetch(OPENAI_API_URL, {
         method: 'POST',
         headers: {
@@ -142,6 +143,7 @@ async function parseLabText(text, apiKey) {
     }
 
     const data = await response.json();
+    await trackCost({ userId, route: 'parse-labs', model: 'gpt-4o', inputTokens: data.usage?.prompt_tokens || 0, outputTokens: data.usage?.completion_tokens || 0 });
     const raw = data.choices?.[0]?.message?.content || '';
     const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
@@ -152,9 +154,10 @@ async function parseLabText(text, apiKey) {
     }
 }
 
-async function parsePdfWithVision(buffer, mimeType, apiKey, res) {
+async function parsePdfWithVision(buffer, mimeType, apiKey, res, userId) {
     const base64 = buffer.toString('base64');
 
+    // IMAGE PRIVACY: image sent directly to provider, never stored locally
     const response = await fetch(OPENAI_API_URL, {
         method: 'POST',
         headers: {
@@ -187,6 +190,7 @@ async function parsePdfWithVision(buffer, mimeType, apiKey, res) {
     }
 
     const data = await response.json();
+    await trackCost({ userId, route: 'parse-labs', model: 'gpt-4o', inputTokens: data.usage?.prompt_tokens || 0, outputTokens: data.usage?.completion_tokens || 0, hasImage: true });
     const raw = data.choices?.[0]?.message?.content || '';
     const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 

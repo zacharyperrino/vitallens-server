@@ -1,4 +1,5 @@
 // ─── VitalLens API Server ────────────────────────────────────
+import './instrument.js'; // Sentry.init — must load before anything else
 import * as Sentry from '@sentry/node';
 import express from 'express';
 import cors from 'cors';
@@ -6,6 +7,7 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
+import { requireAuth } from './middleware/auth.js';
 
 import barcodeRoutes from './routes/barcode.js';
 import ocrRoutes from './routes/ocr.js';
@@ -30,14 +32,25 @@ import healthCopilotRoutes from './routes/health-copilot.js';
 import weeklyReportRoutes from './routes/weekly-report.js';
 import predictionEngineRoutes from './routes/prediction-engine.js';
 import userDataRoutes from './routes/user-data.js';
-import './services/queue.js';
+import { setupQueues } from './services/queue.js';
 import billingRoutes from './routes/billing.js';
 import pushRoutes from './routes/push.js';
 import ouraRoutes from './routes/oura.js';
 import hygieneRoutes from './routes/hygiene.js';
 import usageRoutes from './routes/usage.js';
+import waterRoutes from './routes/water.js';
+import earlyPatternsRoutes from './routes/early-patterns.js';
+import cycleRoutes from './routes/cycle.js';
+import customCorrelationRoutes from './routes/custom-correlation.js';
+import practitionerRoutes from './routes/practitioner.js';
+import medicationsRoutes from './routes/medications.js';
+import genomicsRoutes from './routes/genomics.js';
 
 dotenv.config();
+
+// Create the BullMQ queues so this API process can ADD jobs. Workers
+// that PROCESS jobs run separately (see worker.js / `npm run worker`).
+setupQueues();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -50,6 +63,26 @@ app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 app.use(helmet());
 
+// ─── Production error sanitizer ──────────────────────────────
+// Routes return `{ error: err.message }` on failure, which can leak raw
+// internal/DB details. In production, replace the body of any 5xx response
+// that carries an `error` field with a generic message. 4xx client errors
+// (validation, auth) are left intact — they're safe and useful to the client.
+app.use((req, res, next) => {
+    const origJson = res.json.bind(res);
+    res.json = (body) => {
+        if (
+            process.env.NODE_ENV === 'production' &&
+            res.statusCode >= 500 &&
+            body && typeof body === 'object' && 'error' in body
+        ) {
+            return origJson({ error: 'Internal server error. Please try again.' });
+        }
+        return origJson(body);
+    };
+    next();
+});
+
 // ─── Rate Limiter ────────────────────────────────────────────
 const globalLimiter = rateLimit({
     windowMs: 60 * 1000,
@@ -61,6 +94,16 @@ const globalLimiter = rateLimit({
 app.use('/api', globalLimiter);
 
 // ─── Routes ─────────────────────────────────────────────────
+
+// Public — no auth required
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', service: 'vitallens-api', uptime: process.uptime() });
+});
+app.use('/api', billingRoutes);
+
+// Protected — requireAuth applies to every route below this line
+app.use('/api', requireAuth);
+
 app.use('/api', barcodeRoutes);
 app.use('/api', ocrRoutes);
 app.use('/api', healthScoreRoutes);
@@ -84,15 +127,18 @@ app.use('/api', healthCopilotRoutes);
 app.use('/api', weeklyReportRoutes);
 app.use('/api', predictionEngineRoutes);
 app.use('/api', userDataRoutes);
-app.use('/api', billingRoutes);
 app.use('/api', pushRoutes);
 app.use('/api', ouraRoutes);
 app.use('/api', hygieneRoutes);
 app.use('/api', usageRoutes);
-// ─── Health Check ────────────────────────────────────────────
-app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', service: 'vitallens-api', uptime: process.uptime() });
-});
+app.use('/api', waterRoutes);
+app.use('/api', earlyPatternsRoutes);
+app.use('/api', cycleRoutes);
+app.use('/api', customCorrelationRoutes);
+app.use('/api', practitionerRoutes);
+app.use('/api', medicationsRoutes);
+app.use('/api', genomicsRoutes);
+
 
 // ─── Error Handler ──────────────────────────────────────────
 app.use((err, req, res, _next) => {
@@ -106,9 +152,11 @@ app.use((err, req, res, _next) => {
 Sentry.setupExpressErrorHandler(app);
 
 // ─── Start ──────────────────────────────────────────────────
-app.listen(PORT, () => {
+export default app;
+
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
     console.log(`🔬 VitalLens API running on http://localhost:${PORT}`);
     console.log(`   Routes mounted: ${PORT}`);
-});
-
-export default app;
+  });
+}

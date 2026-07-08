@@ -11,12 +11,12 @@ dotenv.config();
 import { heavyAILimiter } from '../services/ai-limiters.js';
 import { fetchWithRetry } from '../services/ai-fetch.js';
 import { checkAndIncrementUsage } from '../services/usage-gates.js';
+import { trackCost } from '../services/cost-tracker.js';
 
+import { WELLNESS_SYSTEM_PROMPT } from '../services/prompts.js';
 const router = Router();
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
-
-const WELLNESS_SYSTEM_PROMPT = `You are a wellness pattern observer for VitalLens, a personal health journaling app. Observe and describe patterns in logged data using plain, supportive language. Never name medical conditions, never use clinical diagnostic language, never provide medical advice. For any pattern persisting more than two weeks, suggest the user discuss it with a healthcare provider. Always frame observations as things the user may want to notice or explore — never as findings or diagnoses.`;
 
 const REPORT_PROMPT = `You are a personal wellness journal summarizer. Generate a warm, observational weekly patterns summary based on the user's logged data. Be specific and data-grounded. Use the user's actual numbers.
 
@@ -73,6 +73,9 @@ console.log(`[WeeklyReport] Generating for ${userId.slice(0, 8)}`);
 
         if (!claudeRes.ok) throw new Error(`Claude API error: ${claudeRes.status}`);
         const claudeData = await claudeRes.json();
+
+        await trackCost({ userId, route: 'weekly-report', model: 'claude-sonnet-4-20250514', inputTokens: claudeData.usage?.input_tokens || 0, outputTokens: claudeData.usage?.output_tokens || 0 });
+
         const raw = claudeData.content?.[0]?.text || "";
         const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
 
@@ -142,6 +145,7 @@ router.get("/weekly-report/latest", async (req, res) => {
 router.get("/weekly-report/narrative", heavyAILimiter, async (req, res) => {
     try {
         const apiKey = process.env.ANTHROPIC_API_KEY;
+        if (!apiKey) return res.status(500).json({ error: "Anthropic API key not configured." });
         const { userId } = req.query;
 if (!userId) return res.status(400).json({ error: "userId required." });
 
@@ -224,10 +228,14 @@ Respond ONLY with valid JSON, no markdown:
                 system: WELLNESS_SYSTEM_PROMPT,
                 messages: [{ role: "user", content: NARRATIVE_PROMPT }],
             }),
-        });
+            signal: AbortSignal.timeout(30000),
+        }, { routeName: 'WeeklyReportNarrative' });
 
         if (!claudeRes.ok) throw new Error(`Claude API error: ${claudeRes.status}`);
         const claudeData = await claudeRes.json();
+
+        await trackCost({ userId, route: 'weekly-report-narrative', model: 'claude-sonnet-4-20250514', inputTokens: claudeData.usage?.input_tokens || 0, outputTokens: claudeData.usage?.output_tokens || 0 });
+
         const raw = claudeData.content?.[0]?.text || '';
         const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
         const narrative = JSON.parse(cleaned);

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getUsageSummary, checkAndIncrementUsage } from '../services/usage-gates.js';
+import { getUsageSummary } from '../services/usage-gates.js';
 
 const router = Router();
 

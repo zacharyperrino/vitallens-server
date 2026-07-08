@@ -11,12 +11,12 @@ dotenv.config();
 import { heavyAILimiter } from '../services/ai-limiters.js';
 import { fetchWithRetry } from '../services/ai-fetch.js';
 import { checkAndIncrementUsage } from '../services/usage-gates.js';
+import { trackCost } from '../services/cost-tracker.js';
 
+import { WELLNESS_SYSTEM_PROMPT } from '../services/prompts.js';
 const router = Router();
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
-
-const WELLNESS_SYSTEM_PROMPT = `You are a wellness pattern observer for VitalLens, a personal health journaling app. Observe and describe patterns in logged data using plain, supportive language. Never name medical conditions, never use clinical diagnostic language, never provide medical advice. For any pattern persisting more than two weeks, suggest the user discuss it with a healthcare provider. Always frame observations as things the user may want to notice or explore — never as findings or diagnoses.`;
 
 const CORRELATION_PROMPT = `You are a wellness pattern spotter. Analyze the user's logged lifestyle and wellness data and identify real, data-grounded connections and patterns across different areas of their life.
 
@@ -92,6 +92,9 @@ console.log(`[CorrelationEngine] Running analysis for ${userId.slice(0, 8)}`);
 
         if (!claudeRes.ok) throw new Error(`Claude API error: ${claudeRes.status}`);
         const claudeData = await claudeRes.json();
+
+        await trackCost({ userId, route: 'correlation-engine', model: 'claude-sonnet-4-20250514', inputTokens: claudeData.usage?.input_tokens || 0, outputTokens: claudeData.usage?.output_tokens || 0 });
+
         const raw = claudeData.content?.[0]?.text || "";
         const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
 
@@ -145,6 +148,7 @@ try {
 
     if (safetyCheck.ok) {
         const safetyData = await safetyCheck.json();
+        await trackCost({ userId, route: 'correlation-engine', model: 'claude-haiku-4-5-20251001', inputTokens: safetyData.usage?.input_tokens || 0, outputTokens: safetyData.usage?.output_tokens || 0, meta: { safety_check: true } });
         const safetyResult = safetyData.content?.[0]?.text || '';
         if (safetyResult.startsWith('FLAG')) {
             console.warn(`[CorrelationEngine] Safety check flagged output: ${safetyResult}`);

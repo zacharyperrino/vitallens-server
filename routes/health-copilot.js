@@ -11,6 +11,9 @@ import { copilotLimiter } from '../services/ai-limiters.js';
 import { fetchWithRetry } from '../services/ai-fetch.js';
 import { sanitizeContextFields, sanitizeUserInput } from '../services/sanitize.js';
 import { checkAndIncrementUsage } from '../services/usage-gates.js';
+import { trackCost } from '../services/cost-tracker.js';
+import { retrieveRelevantHistory } from '../services/rag.js';
+import { INTERNAL_API_BASE } from '../config.js';
 
 const router = Router();
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
@@ -252,17 +255,18 @@ async function executeTool(toolName, toolInput, userId) {
         }
 
         case "lookup_nutrition": {
-            const res = await fetch(`http://localhost:3001/api/nutrition/search?query=${encodeURIComponent(toolInput.food)}&grams=${toolInput.grams || 100}`);
+            const res = await fetch(`${INTERNAL_API_BASE}/api/nutrition/search?query=${encodeURIComponent(toolInput.food)}&grams=${toolInput.grams || 100}`, { signal: AbortSignal.timeout(15000) });
             if (!res.ok) return { error: "Nutrition lookup failed" };
             const data = await res.json();
             return { food: toolInput.food, grams: toolInput.grams || 100, ...data };
         }
 
         case "run_correlation_analysis": {
-            const res = await fetch("http://localhost:3001/api/correlate/run", {
+            const res = await fetch(`${INTERNAL_API_BASE}/api/correlate/run`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ userId }),
+                signal: AbortSignal.timeout(60000),
             });
             if (!res.ok) return { error: "Pattern analysis failed" };
             const data = await res.json();
@@ -270,10 +274,11 @@ async function executeTool(toolName, toolInput, userId) {
         }
 
         case "generate_weekly_report": {
-            const res = await fetch("http://localhost:3001/api/weekly-report/generate", {
+            const res = await fetch(`${INTERNAL_API_BASE}/api/weekly-report/generate`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ userId }),
+                signal: AbortSignal.timeout(60000),
             });
             if (!res.ok) return { error: "Report generation failed" };
             const data = await res.json();
@@ -281,10 +286,11 @@ async function executeTool(toolName, toolInput, userId) {
         }
 
         case "run_predictions": {
-            const res = await fetch("http://localhost:3001/api/predictions/run", {
+            const res = await fetch(`${INTERNAL_API_BASE}/api/predictions/run`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ userId }),
+                signal: AbortSignal.timeout(60000),
             });
             if (!res.ok) return { error: "Trend analysis failed" };
             const data = await res.json();
@@ -420,11 +426,23 @@ if (freshCorrelations.length > 0) {
             }
         } catch { /* non-blocking */ }
 
+        // ── RAG — retrieve similar past events (non-blocking) ─────
+        let ragContext = "";
+        try {
+            const pastEvents = await retrieveRelevantHistory(userId, message);
+            if (pastEvents.length > 0) {
+                ragContext = "RELEVANT PAST EVENTS (retrieved by similarity to this question):\n"
+                    + pastEvents.map(e => `- ${e}`).join("\n") + "\n\n";
+            }
+        } catch (e) {
+            console.warn('[HealthCopilot] RAG retrieval failed:', e.message);
+        }
+
         const systemPrompt = `${WELLNESS_SYSTEM_PROMPT_BASE}
 
 USER'S LOGGED DATA:
 ${contextText}
-${environmentContext}${correlationContext}${predictionContext}`;
+${environmentContext}${correlationContext}${predictionContext}${ragContext}`;
 
         const claudeMessages = [];
         history.slice(-16).forEach(msg => {
@@ -465,6 +483,14 @@ console.log(`[HealthCopilot] Model: ${selectedModel} for query: "${message.slice
         if (!response.ok) throw new Error(`Claude API error: ${response.status}`);
         let claudeData = await response.json();
 
+await trackCost({
+  userId,
+  route: 'health-copilot',
+  model: selectedModel,
+  inputTokens:  claudeData.usage?.input_tokens  || 0,
+  outputTokens: claudeData.usage?.output_tokens || 0,
+});
+
         const toolsUsed = [];
         let iterations = 0;
         while (claudeData.stop_reason === "tool_use" && iterations < 5) {
@@ -497,6 +523,15 @@ console.log(`[HealthCopilot] Model: ${selectedModel} for query: "${message.slice
 
             if (!response.ok) throw new Error(`Claude API error: ${response.status}`);
             claudeData = await response.json();
+
+await trackCost({
+  userId,
+  route: 'health-copilot',
+  model: selectedModel,
+  inputTokens:  claudeData.usage?.input_tokens  || 0,
+  outputTokens: claudeData.usage?.output_tokens || 0,
+  meta: { tool_iteration: iterations },
+});
         }
 
         const responseText = claudeData.content?.filter(b => b.type === "text").map(b => b.text).join("") || "I could not generate a response.";

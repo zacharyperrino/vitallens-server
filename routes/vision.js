@@ -8,6 +8,7 @@ import multer from 'multer';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { checkAndIncrementUsage } from '../services/usage-gates.js';
+import { trackCost } from '../services/cost-tracker.js';
 dotenv.config();
 
 const router = Router();
@@ -28,6 +29,47 @@ const visionLimiter = rateLimit({
 });
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+
+// Strict schema — guarantees parseable JSON matching the shape VISION_PROMPT asks for.
+const MEAL_SCAN_SCHEMA = {
+    type: 'json_schema',
+    json_schema: {
+        name: 'meal_scan',
+        strict: true,
+        schema: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['foods', 'meal_description', 'meal_context', 'cuisine_type', 'meal_setting', 'scale_anchor_found', 'scale_anchor_notes', 'portion_calibration', 'restaurant_detected', 'restaurant_confidence'],
+            properties: {
+                foods: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        additionalProperties: false,
+                        required: ['label', 'display_name', 'confidence', 'estimated_grams', 'cooking_method', 'box'],
+                        properties: {
+                            label: { type: 'string' },
+                            display_name: { type: 'string' },
+                            confidence: { type: 'number' },
+                            estimated_grams: { type: 'number' },
+                            cooking_method: { type: 'string', enum: ['grilled', 'fried', 'steamed', 'baked', 'raw', 'roasted', 'sauteed', 'boiled', 'unknown'] },
+                            box: { type: 'array', items: { type: 'number' } },
+                        },
+                    },
+                },
+                meal_description: { type: 'string' },
+                meal_context: { type: 'string', enum: ['breakfast', 'lunch', 'dinner', 'snack', 'unknown'] },
+                cuisine_type: { type: 'string' },
+                meal_setting: { type: 'string', enum: ['home_cooked', 'fast_food', 'casual_restaurant', 'fine_dining', 'packaged', 'food_truck', 'unknown'] },
+                scale_anchor_found: { type: 'string', enum: ['hand', 'fork', 'plate', 'bowl', 'cup', 'phone', 'card', 'packaging', 'none'] },
+                scale_anchor_notes: { type: 'string' },
+                portion_calibration: { type: 'string', enum: ['home_portion', 'restaurant_portion', 'fast_food_portion', 'fine_dining_portion', 'unknown'] },
+                restaurant_detected: { type: 'string' },
+                restaurant_confidence: { type: 'number' },
+            },
+        },
+    },
+};
 
 const VISION_PROMPT = `You are a world-class food recognition and nutrition AI, specialized in estimating calories and portions from photos with the highest possible accuracy. Your job is identical to what a professional sports nutritionist would do when handed a photo of a meal.
 
@@ -278,6 +320,57 @@ router.post('/vision-scan', visionLimiter, upload.single('image'), async (req, r
             if (!gate.allowed) return res.status(429).json({ error: gate.message, upgradeRequired: true });
         }
 
+        // ── Barcode-first gate ────────────────────────────────
+        // Prefer exact barcode data over GPT-4o vision. Only fall
+        // through to GPT-4o when no barcode result is available.
+        const formatBarcodeResult = (product) => ({
+            detections: [{
+                label: product.product_name,
+                display_name: product.product_name,
+                estimated_grams: 100,
+                confidence: 0.95,
+                cooking_method: 'unknown',
+                box: [0, 0, 1, 1],
+            }],
+            meal_description: 'Barcode scan result',
+            source: 'barcode',
+        });
+
+        // 2 — pre-fetched barcode result from the frontend
+        if (req.body?.barcodeData) {
+            let pre = req.body.barcodeData;
+            try {
+                if (typeof pre === 'string') pre = JSON.parse(pre);
+            } catch { pre = null; }
+            const product = pre?.product || pre;
+            if (product?.product_name && product?.nutriments) {
+                console.log(`[Vision] Barcode hit: ${product.product_name}`);
+                return res.json(formatBarcodeResult(product));
+            }
+        }
+
+        // 1 — barcode lookup against Open Food Facts
+        if (req.body?.barcode) {
+            try {
+                const offRes = await fetch(
+                    `https://world.openfoodfacts.org/api/v0/product/${req.body.barcode}.json`,
+                    { signal: AbortSignal.timeout(8000) },
+                );
+                if (offRes.ok) {
+                    const offData = await offRes.json();
+                    const product = offData?.product;
+                    if (product?.product_name && product?.nutriments) {
+                        console.log(`[Vision] Barcode hit: ${product.product_name}`);
+                        return res.json(formatBarcodeResult(product));
+                    }
+                }
+            } catch (e) {
+                console.warn('[Vision] Open Food Facts lookup failed:', e.message);
+            }
+        }
+
+        console.log('[Vision] No barcode — falling through to GPT-4o');
+
         let base64Image, mimeType;
         if (req.file) {
             base64Image = req.file.buffer.toString('base64');
@@ -310,6 +403,7 @@ router.post('/vision-scan', visionLimiter, upload.single('image'), async (req, r
             } catch { /* ignore parse errors */ }
         }
 
+        // IMAGE PRIVACY: image sent directly to provider, never stored locally
         const response = await fetch(OPENAI_API_URL, {
             method: 'POST',
             headers: {
@@ -318,7 +412,9 @@ router.post('/vision-scan', visionLimiter, upload.single('image'), async (req, r
             },
             body: JSON.stringify({
                 model: 'gpt-4o',
-                max_tokens: 1500,
+                max_tokens: 2000,
+                temperature: 0,
+                response_format: MEAL_SCAN_SCHEMA,
                 messages: [{
                     role: 'user',
                     content: [
@@ -343,12 +439,20 @@ router.post('/vision-scan', visionLimiter, upload.single('image'), async (req, r
         }
 
         const data = await response.json();
+
+await trackCost({
+  userId: userId || null,
+  route: 'vision-scan',
+  model: 'gpt-4o',
+  inputTokens:  data.usage?.prompt_tokens     || 0,
+  outputTokens: data.usage?.completion_tokens || 0,
+  hasImage: true,
+});
         const raw = data.choices?.[0]?.message?.content || '';
-        const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
         let parsed;
         try {
-            parsed = JSON.parse(cleaned);
+            parsed = JSON.parse(raw);
         } catch {
             console.error('[Vision] JSON parse failed:', raw.slice(0, 200));
             return res.status(422).json({ error: 'Failed to parse vision response.' });

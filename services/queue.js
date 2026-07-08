@@ -1,11 +1,18 @@
 // ─── AI Job Queue ─────────────────────────────────────────────
 // BullMQ queues for heavy AI workloads (correlation, weekly report).
 // Uses Upstash Redis as the queue backend.
+//
+// This module NO LONGER starts workers on import. Instead:
+//   - setupQueues()  — creates the Queue instances so the API process
+//                      can ADD jobs. Call this from server.js.
+//   - startWorkers() — creates the Worker instances that PROCESS jobs.
+//                      Call this ONLY from the standalone worker.js.
 
-import { Queue, Worker, QueueEvents } from 'bullmq';
+import { Queue, Worker } from 'bullmq';
 import { createClient } from '@supabase/supabase-js';
 import { buildFullContext, snapshotToText } from './context-builder.js';
 import dotenv from 'dotenv';
+import { WELLNESS_SYSTEM_PROMPT } from './prompts.js';
 dotenv.config();
 
 // ── Redis connection for BullMQ ───────────────────────────────
@@ -24,18 +31,24 @@ const supabase = createClient(
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 
-const WELLNESS_SYSTEM_PROMPT = `You are a wellness pattern observer for VitalLens, a personal health journaling app. Observe and describe patterns in logged data using plain, supportive language. Never name medical conditions, never use clinical diagnostic language, never provide medical advice. For any pattern persisting more than two weeks, suggest the user discuss it with a healthcare provider.`;
+// Module-level singletons — populated by setupQueues() / startWorkers().
+let correlationQueue = null;
+let weeklyReportQueue = null;
+let correlationWorker = null;
+let weeklyReportWorker = null;
 
-// ── Queues ────────────────────────────────────────────────────
-export const correlationQueue = new Queue('correlation', { connection });
-export const weeklyReportQueue = new Queue('weekly-report', { connection });
+// ── Queue setup (producers) ───────────────────────────────────
+// Safe to call from the API process. Creates the Queue objects so
+// jobs can be added, but does NOT process anything. Idempotent.
+export function setupQueues() {
+    if (!correlationQueue) correlationQueue = new Queue('correlation', { connection });
+    if (!weeklyReportQueue) weeklyReportQueue = new Queue('weekly-report', { connection });
+    return { correlationQueue, weeklyReportQueue };
+}
 
-// ── Queue Events (for monitoring) ────────────────────────────
-export const correlationEvents = new QueueEvents('correlation', { connection });
-export const weeklyReportEvents = new QueueEvents('weekly-report', { connection });
+// ── Job processors ────────────────────────────────────────────
 
-// ── Correlation Worker ────────────────────────────────────────
-export const correlationWorker = new Worker('correlation', async (job) => {
+async function processCorrelation(job) {
     const { userId } = job.data;
     console.log(`[Queue] Correlation job started for ${userId.slice(0, 8)}`);
 
@@ -104,11 +117,9 @@ Respond ONLY with valid JSON, no markdown:
 
     console.log(`[Queue] Correlation job complete for ${userId.slice(0, 8)} — ${analysis.correlations?.length || 0} patterns`);
     return { success: true, patternCount: analysis.correlations?.length || 0 };
+}
 
-}, { connection, concurrency: 2 });
-
-// ── Weekly Report Worker ──────────────────────────────────────
-export const weeklyReportWorker = new Worker('weekly-report', async (job) => {
+async function processWeeklyReport(job) {
     const { userId } = job.data;
     console.log(`[Queue] Weekly report job started for ${userId.slice(0, 8)}`);
 
@@ -165,16 +176,21 @@ Respond ONLY with valid JSON, no markdown:
 
     console.log(`[Queue] Weekly report job complete for ${userId.slice(0, 8)} — score: ${report.week_score}`);
     return { success: true, weekScore: report.week_score };
+}
 
-}, { connection, concurrency: 2 });
+// ── Worker startup (consumers) ────────────────────────────────
+// Call this ONLY from the standalone worker process (worker.js).
+export function startWorkers() {
+    correlationWorker = new Worker('correlation', processCorrelation, { connection, concurrency: 2 });
+    weeklyReportWorker = new Worker('weekly-report', processWeeklyReport, { connection, concurrency: 2 });
 
-// ── Error handlers ────────────────────────────────────────────
-correlationWorker.on('failed', (job, err) => {
-    console.error(`[Queue] Correlation job ${job?.id} failed:`, err.message);
-});
+    correlationWorker.on('failed', (job, err) => {
+        console.error(`[Queue] Correlation job ${job?.id} failed:`, err.message);
+    });
+    weeklyReportWorker.on('failed', (job, err) => {
+        console.error(`[Queue] Weekly report job ${job?.id} failed:`, err.message);
+    });
 
-weeklyReportWorker.on('failed', (job, err) => {
-    console.error(`[Queue] Weekly report job ${job?.id} failed:`, err.message);
-});
-
-console.log('[Queue] BullMQ workers started — correlation + weekly report');
+    console.log('[Queue] BullMQ workers started — correlation + weekly report');
+    return { correlationWorker, weeklyReportWorker };
+}

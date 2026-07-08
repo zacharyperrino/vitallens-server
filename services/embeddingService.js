@@ -125,6 +125,7 @@ export function buildHabitDescription(entry) {
     if (entry.smoking) parts.push('Smoking: yes.');
     if (entry.alcohol && entry.alcohol !== 'none') parts.push(`Alcohol: ${entry.alcohol}.`);
     if (entry.caffeine) parts.push(`Caffeine: ${entry.caffeine}.`);
+    if (entry.steps) parts.push(`Steps: ${entry.steps}.`);
     if (entry.stress_level != null) parts.push(`Stress level: ${entry.stress_level}/10.`);
     if (entry.mood) parts.push(`Mood: ${entry.mood}.`);
     if (entry.notes) parts.push(`Notes: ${entry.notes}.`);
@@ -161,6 +162,23 @@ export function buildSymptomDescription(symptom) {
     ].filter(Boolean).join(' ');
 }
 
+export function buildCycleDescription(entry) {
+    return [
+        `Cycle event: ${entry.event_type}.`,
+        entry.flow && `Flow: ${entry.flow}.`,
+        entry.symptom && `Symptom: ${entry.symptom}.`,
+        entry.date && `Date: ${entry.date}.`,
+    ].filter(Boolean).join(' ');
+}
+
+export function buildMedicationDescription(entry) {
+    // Name and timing ONLY — never any clinical interpretation.
+    return [
+        `Medication logged: ${entry.name}.`,
+        entry.started_at && `Started: ${new Date(entry.started_at).toISOString().split('T')[0]}.`,
+    ].filter(Boolean).join(' ');
+}
+
 // ── Dispatch ──────────────────────────────────────────────────
 
 /**
@@ -178,6 +196,8 @@ export function buildDescription(eventType, data) {
         case 'lab_result': return buildLabDescription(data);
         case 'product_scan': return buildProductScanDescription(data);
         case 'symptom': return buildSymptomDescription(data);
+        case 'cycle': return buildCycleDescription(data);
+        case 'medication': return buildMedicationDescription(data);
         default: return JSON.stringify(data).slice(0, 500);
     }
 }

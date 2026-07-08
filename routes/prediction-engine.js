@@ -11,12 +11,12 @@ dotenv.config();
 import { heavyAILimiter } from '../services/ai-limiters.js';
 import { fetchWithRetry } from '../services/ai-fetch.js';
 import { checkAndIncrementUsage } from '../services/usage-gates.js';
+import { trackCost } from '../services/cost-tracker.js';
 
+import { WELLNESS_SYSTEM_PROMPT } from '../services/prompts.js';
 const router = Router();
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
-
-const WELLNESS_SYSTEM_PROMPT = `You are a wellness pattern observer for VitalLens, a personal health journaling app. Observe and describe patterns in logged data using plain, supportive language. Never name medical conditions, never use clinical diagnostic language, never provide medical advice. For any pattern persisting more than two weeks, suggest the user discuss it with a healthcare provider. Always frame observations as things the user may want to notice or explore — never as findings or diagnoses.`;
 
 const PREDICTION_PROMPT = `You are a wellness trend analyst. Based on the user's logged lifestyle and wellness data, identify where their patterns are heading and what changes would have the most impact.
 
@@ -105,6 +105,9 @@ console.log(`[PredictionEngine] Running for ${userId.slice(0, 8)}`);
 
         if (!claudeRes.ok) throw new Error(`Claude API error: ${claudeRes.status}`);
         const claudeData = await claudeRes.json();
+
+        await trackCost({ userId, route: 'prediction-engine', model: 'claude-sonnet-4-20250514', inputTokens: claudeData.usage?.input_tokens || 0, outputTokens: claudeData.usage?.output_tokens || 0 });
+
         const raw = claudeData.content?.[0]?.text || "";
         const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
 
