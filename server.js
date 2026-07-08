@@ -45,6 +45,7 @@ import customCorrelationRoutes from './routes/custom-correlation.js';
 import practitionerRoutes from './routes/practitioner.js';
 import medicationsRoutes from './routes/medications.js';
 import genomicsRoutes from './routes/genomics.js';
+import consentsRoutes from './routes/consents.js';
 
 dotenv.config();
 
@@ -155,9 +156,16 @@ app.use('/api', waterRoutes);
 app.use('/api', earlyPatternsRoutes);
 app.use('/api', cycleRoutes);
 app.use('/api', customCorrelationRoutes);
-app.use('/api', practitionerRoutes);
 app.use('/api', medicationsRoutes);
-app.use('/api', genomicsRoutes);
+app.use('/api', consentsRoutes);
+
+// ─── FROZEN (not mounted) ────────────────────────────────────
+// Genomics and the practitioner portal carry heavy regulatory/consent
+// obligations (genetic-privacy law, third-party health-data sharing) and
+// have no shipped frontend. They stay unmounted until counsel signs off and
+// a proper consent flow exists. Do not remount without that review.
+// app.use('/api', practitionerRoutes);
+// app.use('/api', genomicsRoutes);
 
 
 // ─── Error Handler ──────────────────────────────────────────
