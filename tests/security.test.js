@@ -138,3 +138,28 @@ describe('global ownership guard covers previously-unguarded routes', () => {
     expect(res.status).not.toBe(403);
   });
 });
+
+describe('billing routes are authenticated (regression: unauthenticated IDOR)', () => {
+  // billingRoutes mounts before the global auth gate so the Stripe webhook
+  // stays public; every other billing route must authenticate itself.
+  it('billing/status: 401 with no token, even with a valid userId', async () => {
+    const res = await request(app).get(`/api/billing/status?userId=${A.id}`);
+    expect(res.status).toBe(401);
+  });
+
+  it('billing/status: returns ONLY the caller\'s own record, ignoring userId param', async () => {
+    const res = await request(app)
+      .get(`/api/billing/status?userId=${A.id}`) // B asks for A
+      .set('Authorization', `Bearer ${B.token}`);
+    expect(res.status).toBe(200);
+    // B gets B's status; the leaked stripe_customer_id field is never returned
+    expect(res.body.stripe_customer_id).toBeUndefined();
+  });
+
+  it('billing/create-checkout: 401 with no token', async () => {
+    const res = await request(app)
+      .post('/api/billing/create-checkout')
+      .send({ plan: 'monthly' });
+    expect(res.status).toBe(401);
+  });
+});

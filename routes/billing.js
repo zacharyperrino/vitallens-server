@@ -5,6 +5,7 @@
 
 import { Router } from 'express';
 import Stripe from 'stripe';
+import { requireAuth } from '../middleware/auth.js';
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 dotenv.config();
@@ -24,10 +25,17 @@ const PRICES = {
 };
 
 // ── POST /api/billing/create-checkout ────────────────────────
-router.post('/billing/create-checkout', async (req, res) => {
+// This router is mounted before the global auth gate so the Stripe webhook
+// (which Stripe signs, not the user) stays reachable. Every other billing
+// route must therefore authenticate itself, and must NEVER trust a
+// client-supplied userId — the webhook later grants premium to whatever id
+// lands in session metadata.
+router.post('/billing/create-checkout', requireAuth, async (req, res) => {
     try {
-        const { userId, email, plan = 'monthly', successUrl, cancelUrl } = req.body;
-        if (!userId || !email) return res.status(400).json({ error: 'userId and email required.' });
+        const { plan = 'monthly', successUrl, cancelUrl } = req.body;
+        const userId = req.user.id;
+        const email = req.user.email;
+        if (!email) return res.status(400).json({ error: 'Account has no email on file.' });
 
         const priceId = PRICES[plan];
         if (!priceId) return res.status(400).json({ error: 'Invalid plan.' });
@@ -146,16 +154,17 @@ router.post('/billing/webhook', async (req, res) => {
 });
 
 // ── GET /api/billing/status ───────────────────────────────────
-router.get('/billing/status', async (req, res) => {
+router.get('/billing/status', requireAuth, async (req, res) => {
     try {
-        const { userId } = req.query;
-        if (!userId) return res.status(400).json({ error: 'userId required.' });
+        // Only ever the caller's own status — the query param was an
+        // unauthenticated IDOR that leaked any user's subscription record.
+        const userId = req.user.id;
 
         const { data, error } = await supabase
             .from('profiles')
-            .select('subscription_status, subscription_plan, trial_end, current_period_end, stripe_customer_id')
+            .select('subscription_status, subscription_plan, trial_end, current_period_end')
             .eq('id', userId)
-            .single();
+            .maybeSingle(); // no profile row yet (pre-onboarding) = free tier, not a 500
 
         if (error) throw error;
 

@@ -164,6 +164,11 @@ app.use('/api', consentsRoutes);
 
 
 // ─── Error Handler ──────────────────────────────────────────
+// Sentry must be registered BEFORE the responding handler: Express runs
+// error middleware in order, and the handler below ends the response
+// without calling next(err), so anything after it never sees the error.
+Sentry.setupExpressErrorHandler(app);
+
 app.use((err, req, res, _next) => {
     console.error(`[ERROR] ${err.message}`, err.stack);
     res.status(err.status || 500).json({
@@ -171,8 +176,6 @@ app.use((err, req, res, _next) => {
         ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
     });
 });
-
-Sentry.setupExpressErrorHandler(app);
 
 // ─── Start ──────────────────────────────────────────────────
 export default app;

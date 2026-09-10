@@ -9,6 +9,17 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # Job-level env so the step `if:` below can actually read it. A step's own
+    # env: block is NOT visible to its own if: condition, which silently skipped
+    # the security tests on every run.
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      TEST_USER_A_EMAIL: ${{ secrets.TEST_USER_A_EMAIL }}
+      TEST_USER_A_PASSWORD: ${{ secrets.TEST_USER_A_PASSWORD }}
+      TEST_USER_B_EMAIL: ${{ secrets.TEST_USER_B_EMAIL }}
+      TEST_USER_B_PASSWORD: ${{ secrets.TEST_USER_B_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
