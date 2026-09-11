@@ -26,7 +26,39 @@ describe('fetchWithRetry', () => {
       ok,
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith('https://ai.example/v1', { method: 'POST' });
+    expect(fetchMock).toHaveBeenCalledWith('https://ai.example/v1', {
+      method: 'POST',
+      signal: expect.any(AbortSignal),
+    });
+  });
+
+  it('retries immediately when full jitter draws a 0ms delay', async () => {
+    Math.random.mockReturnValue(0);
+    const ok = res(200);
+    fetchMock.mockResolvedValueOnce(res(503)).mockResolvedValue(ok);
+    await expect(fetchWithRetry('u', {}, fast)).resolves.toBe(ok);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(console.warn).toHaveBeenCalledWith(expect.stringMatching(/retrying in 0ms/));
+  });
+
+  it('gives each attempt a fresh timeout so a timed-out attempt does not poison the next', async () => {
+    const ok = res(200);
+    // Attempt 1 hangs until its per-attempt signal fires; attempt 2 succeeds.
+    fetchMock
+      .mockImplementationOnce((_url, { signal }) => new Promise((_, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason));
+      }))
+      .mockResolvedValue(ok);
+
+    await expect(fetchWithRetry('u', { timeoutMs: 20 }, fast)).resolves.toBe(ok);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const [first, second] = fetchMock.mock.calls.map(([, init]) => init.signal);
+    expect(first.aborted).toBe(true);
+    expect(second).not.toBe(first);
+    expect(second.aborted).toBe(false);
+    // timeoutMs is consumed by the wrapper, never forwarded to fetch.
+    expect(fetchMock.mock.calls[0][1]).not.toHaveProperty('timeoutMs');
   });
 
   it('retries a 503 and returns the eventual success', async () => {

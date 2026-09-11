@@ -58,4 +58,18 @@ describe('signed OAuth state', () => {
       expect(verifyState(bad, 'oura')).toBeNull();
     }
   });
+
+  it('returns null (never throws) for a multi-byte signature that matches the expected string length', () => {
+    // 43 chars like a real base64url SHA-256, but 86 bytes: a naive string-length
+    // guard lets this reach timingSafeEqual, which throws on unequal buffers.
+    const state = signState('user-123', 'oura');
+    const payloadPart = state.slice(0, state.lastIndexOf('.') + 1);
+    expect(() => verifyState(`${payloadPart}${'é'.repeat(43)}`, 'oura')).not.toThrow();
+    expect(verifyState(`${payloadPart}${'é'.repeat(43)}`, 'oura')).toBeNull();
+  });
+
+  it('returns null (never throws) for a non-base64 payload', () => {
+    expect(() => verifyState('not-base64!!.sig', 'oura')).not.toThrow();
+    expect(verifyState('not-base64!!.sig', 'oura')).toBeNull();
+  });
 });

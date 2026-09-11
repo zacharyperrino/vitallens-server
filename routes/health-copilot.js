@@ -340,11 +340,16 @@ router.post("/health-copilot", copilotLimiter, async (req, res) => {
 const gate = await checkAndIncrementUsage(userId, 'ai_chat');
 if (!gate.allowed) return res.status(429).json({ error: gate.message, upgradeRequired: true });
 
-        console.log(`[HealthCopilot] Query from ${userId.slice(0, 8)}: "${message.slice(0, 80)}"`);
+        // Metadata only — never the message text (console breadcrumbs reach Sentry).
+        console.log(`[HealthCopilot] Query from ${userId.slice(0, 8)} (${message.length} chars)`);
 
         // The snapshot build (up to 15 queries) and the RAG embedding call are
         // independent — start both now, await where used.
         const snapshotPromise = buildFullContext(userId, { window: 30 });
+        // Awaited further down; the no-op handler stops a rejection during the
+        // intervening awaits from surfacing as an unhandled rejection. The real
+        // error still propagates at `await snapshotPromise`.
+        snapshotPromise.catch(() => {});
         const ragPromise = retrieveRelevantHistory(userId, message)
             .catch(e => { console.warn('[HealthCopilot] RAG retrieval failed:', e.message); return []; });
 
@@ -466,7 +471,7 @@ ${environmentContext}${correlationContext}${predictionContext}${ragContext}`;
 
 
 
-        console.log(`[HealthCopilot] Model: ${COPILOT_MODEL} for query: "${message.slice(0, 50)}"`);
+        console.log(`[HealthCopilot] Model: ${COPILOT_MODEL} (${message.length}-char query, ${claudeMessages.length} turns)`);
 
         let response = await fetchWithRetry(ANTHROPIC_API_URL, {
             method: "POST",
@@ -478,7 +483,7 @@ ${environmentContext}${correlationContext}${predictionContext}${ragContext}`;
                 tools: TOOLS,
                 messages: claudeMessages,
             }),
-            signal: AbortSignal.timeout(35000),
+            timeoutMs: 35_000,
         }, { routeName: 'HealthCopilot' });
 
         if (!response.ok) throw new Error(`Claude API error: ${response.status}`);
@@ -500,7 +505,7 @@ await trackCost({
             const toolResults = [];
 
             for (const toolBlock of toolUseBlocks) {
-                console.log(`[CopilotTool] ${toolBlock.name} — ${JSON.stringify(toolBlock.input).slice(0, 100)}`);
+                console.log(`[CopilotTool] ${toolBlock.name} — input keys: ${Object.keys(toolBlock.input || {}).join(', ') || 'none'}`);
                 const result = await executeTool(toolBlock.name, toolBlock.input, userId, req.headers.authorization);
                 toolsUsed.push({ name: toolBlock.name, input: toolBlock.input, result });
                 toolResults.push({ type: "tool_result", tool_use_id: toolBlock.id, content: JSON.stringify(result) });
@@ -519,7 +524,7 @@ await trackCost({
                     tools: TOOLS,
                     messages: claudeMessages,
                 }),
-                signal: AbortSignal.timeout(35000),
+                timeoutMs: 35_000,
             }, { routeName: 'HealthCopilot' });
 
             if (!response.ok) throw new Error(`Claude API error: ${response.status}`);

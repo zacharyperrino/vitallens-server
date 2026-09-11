@@ -174,9 +174,26 @@ export async function buildFullContext(userId, options = {}) {
         }
     } catch { /* Redis optional — fall through and build */ }
 
+    try {
+        return await buildSnapshot(userId, window, key);
+    } finally {
+        // Release whether the build threw, the cache write failed, or it succeeded.
+        if (gotLock) await redis.del(lockKey).catch(() => {});
+    }
+}
+
+async function buildSnapshot(userId, window, key) {
     console.log(`[ContextCache] MISS for ${userId.slice(0, 8)} — building from Supabase`);
 
-    const today = todayISO('local');
+    // "Today" is the user's calendar day when profiles.timezone is set,
+    // server-local otherwise (the convention the `date` columns use).
+    let tz = 'local';
+    try {
+        const { data } = await supabase.from("profiles").select("timezone").eq("id", userId).maybeSingle();
+        if (data?.timezone) tz = data.timezone;
+    } catch { /* fall back to server-local */ }
+
+    const today = todayISO(tz);
     const sevenDaysAgo = daysAgo(7).toISOString();
     const windowStart = daysAgo(window).toISOString();
     const ninetyStart = daysAgo(90).toISOString();
@@ -195,13 +212,13 @@ export async function buildFullContext(userId, options = {}) {
         supabase.from("biomarker_scans").select("scan_type, score, risk_tier, scanned_at").eq("user_id", userId).gte("scanned_at", ninetyStart).order("scanned_at", { ascending: true }),
         supabase.from("environment_logs").select("location, aqi, aqi_category, pm2_5, uv_index, water_risk, logged_at").eq("user_id", userId).order("logged_at", { ascending: false }).limit(7),
         // Tier 1 — last 7 days full detail
-        supabase.from("daily_nutrition").select("date, calories, protein, carbs, fat, fiber").eq("user_id", userId).gte("date", daysAgoISO(7, 'local')).order("date", { ascending: true }),
+        supabase.from("daily_nutrition").select("date, calories, protein, carbs, fat, fiber").eq("user_id", userId).gte("date", daysAgoISO(7, tz)).order("date", { ascending: true }),
         supabase.from("meals").select("name, calories, protein, carbs, fat, fiber, logged_at").eq("user_id", userId).gte("logged_at", sevenDaysAgo).order("logged_at", { ascending: false }).limit(20),
-        supabase.from("sleep_log").select("hours, quality, bedtime, sleep_latency_min, wakeups, date").eq("user_id", userId).gte("date", daysAgoISO(7, 'local')).order("date", { ascending: true }),
+        supabase.from("sleep_log").select("hours, quality, bedtime, sleep_latency_min, wakeups, date").eq("user_id", userId).gte("date", daysAgoISO(7, tz)).order("date", { ascending: true }),
         supabase.from("exercise_log").select("type, name, duration, intensity, rpe, logged_at").eq("user_id", userId).gte("logged_at", sevenDaysAgo).order("logged_at", { ascending: false }),
         // Tier 2 — days 8-30, aggregated
-        supabase.from("daily_nutrition").select("date, calories, protein, carbs, fat, fiber").eq("user_id", userId).gte("date", daysAgoISO(window, 'local')).lt("date", daysAgoISO(7, 'local')).order("date", { ascending: true }),
-        supabase.from("sleep_log").select("hours, quality, date").eq("user_id", userId).gte("date", daysAgoISO(window, 'local')).lt("date", daysAgoISO(7, 'local')).order("date", { ascending: true }),
+        supabase.from("daily_nutrition").select("date, calories, protein, carbs, fat, fiber").eq("user_id", userId).gte("date", daysAgoISO(window, tz)).lt("date", daysAgoISO(7, tz)).order("date", { ascending: true }),
+        supabase.from("sleep_log").select("hours, quality, date").eq("user_id", userId).gte("date", daysAgoISO(window, tz)).lt("date", daysAgoISO(7, tz)).order("date", { ascending: true }),
         supabase.from("exercise_log").select("type, duration, logged_at").eq("user_id", userId).gte("logged_at", windowStart).lt("logged_at", sevenDaysAgo),
         supabase.from("hygiene_scans").select("product_name, brand, safety_score, concerns, scanned_at").eq("user_id", userId).gte("scanned_at", sevenDaysAgo).order("scanned_at", { ascending: false }).limit(10),
     ]);
@@ -314,7 +331,6 @@ export async function buildFullContext(userId, options = {}) {
 
     try {
         await redis.set(key, JSON.stringify(snapshot), { ex: CACHE_TTL_SECONDS });
-        if (gotLock) await redis.del(lockKey).catch(() => {});
         console.log(`[ContextCache] SET for ${userId.slice(0, 8)} (${window}d, TTL ${CACHE_TTL_SECONDS}s)`);
     } catch (err) {
         console.warn('[ContextCache] Redis write failed (non-blocking):', err.message);

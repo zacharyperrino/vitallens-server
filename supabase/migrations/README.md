@@ -6,6 +6,8 @@
 - `./*.sql` — incremental migrations applied since 2026-07-04, in order.
   The baseline already includes their effects; they are kept as history.
 
-To rebuild from scratch: run `schema-baseline.sql`, then nothing else is needed.
+To rebuild from scratch: run `schema-baseline.sql`, then the reference data in
+`../seed/additive_classifications.sql` (the only non-user table with content;
+without it every additive scores as `unknown`). Nothing else is needed.
 To evolve the schema: add a new timestamped file here and apply it via the
 Supabase SQL editor or CLI, then refresh the baseline.

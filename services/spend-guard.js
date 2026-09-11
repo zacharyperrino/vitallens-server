@@ -15,9 +15,18 @@
 
 import { supabase } from '../db/supabase.js';
 
-const USER_CAP = Number(process.env.MAX_USER_MONTHLY_USD) || 5;
-const USER_CAP_PREMIUM = Number(process.env.MAX_USER_MONTHLY_USD_PREMIUM) || 50;
-const GLOBAL_CAP = Number(process.env.MAX_GLOBAL_MONTHLY_USD) || 250;
+// An explicit 0 is an emergency kill switch — `Number(x) || default` would
+// silently coerce it back to the default. Only unset / non-numeric falls back.
+function envNumber(name, fallback) {
+    const raw = process.env[name];
+    if (raw === undefined || raw === '') return fallback;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : fallback;
+}
+
+const USER_CAP = envNumber('MAX_USER_MONTHLY_USD', 5);
+const USER_CAP_PREMIUM = envNumber('MAX_USER_MONTHLY_USD_PREMIUM', 50);
+const GLOBAL_CAP = envNumber('MAX_GLOBAL_MONTHLY_USD', 250);
 
 function monthStartISO() {
     const now = new Date();

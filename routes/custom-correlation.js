@@ -60,7 +60,7 @@ const VARIABLE_MAP = {
     sleep:      { table: 'sleep_log',       value: 'hours',     dateCol: 'date',       agg: 'avg', label: 'sleep (hours)' },
     calories:   { table: 'daily_nutrition', value: 'calories',  dateCol: 'date',       agg: 'avg', label: 'calories' },
     exercise:   { table: 'exercise_log',    value: 'duration',  dateCol: 'logged_at',  agg: 'sum', label: 'exercise (minutes)' },
-    water:      { table: 'water_log',       value: 'amount_ml', dateCol: 'logged_at',  agg: 'sum', label: 'water (ml)' },
+    water:      { table: 'habits',          value: 'water_glasses', dateCol: 'date',       agg: 'sum', label: 'water (glasses)' },
     skin_score: { table: 'biomarker_scans', value: 'score',     dateCol: 'scanned_at', agg: 'avg', label: 'skin/face wellness score', filterIn: { column: 'scan_type', values: ['skin', 'face'] } },
     caffeine:   { table: 'habits',          value: 'caffeine',  dateCol: 'date',       agg: 'avg', label: 'caffeine (0-3 scale)', transform: caffeineToNum },
     mood:       { table: 'habits',          value: 'mood',      dateCol: 'date',       agg: 'avg', label: 'mood (1-5 scale)',    transform: moodToNum },
@@ -114,8 +114,6 @@ router.post('/custom-correlation', requireSelf('userId'), async (req, res) => {
         if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: 'Anthropic API key not configured.' });
         const { userId, variableA, variableB } = req.body;
         const days = Math.min(180, Math.max(7, parseInt(req.body.days, 10) || 30)); // bound prompt size
-        const gate = await checkAndIncrementUsage(userId, 'custom_correlation');
-        if (!gate.allowed) return res.status(429).json({ error: gate.message, upgradeRequired: true });
         if (!variableA || !variableB) return res.status(400).json({ error: 'variableA and variableB are required.' });
 
         const windowDays = Math.min(Math.max(parseInt(days, 10) || 30, 7), 180);
@@ -135,6 +133,10 @@ router.post('/custom-correlation', requireSelf('userId'), async (req, res) => {
                 error: `Unknown variable: ${unknown.join(', ')}. Supported: ${Object.keys(VARIABLE_MAP).join(', ')}.`,
             });
         }
+
+        // Usage gate only after request validation so a 400 never burns quota.
+        const gate = await checkAndIncrementUsage(userId, 'custom_correlation');
+        if (!gate.allowed) return res.status(429).json({ error: gate.message, upgradeRequired: true });
 
         // Align by shared dates.
         const sharedDays = Object.keys(seriesA).filter(d => d in seriesB).sort();
@@ -175,7 +177,7 @@ Describe any relationship you notice between these two variables in plain, suppo
                 system: SYSTEM_PROMPT,
                 messages: [{ role: 'user', content: prompt }],
             }),
-            signal: AbortSignal.timeout(35000),
+            timeoutMs: 35_000,
         }, { routeName: 'CustomCorrelation' });
 
         if (!response.ok) throw new Error(`Claude API error: ${response.status}`);

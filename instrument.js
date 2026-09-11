@@ -1,3 +1,6 @@
+// Preloaded with `node --import ./instrument.js server.js` so Sentry can
+// hook Express before it is imported (ESM needs the loader hook in place).
+import './env.js';
 import * as Sentry from '@sentry/node';
 
 Sentry.init({

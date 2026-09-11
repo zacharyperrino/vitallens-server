@@ -175,6 +175,7 @@ async function refreshOuraToken(userId, refreshToken) {
             client_id: OURA_CLIENT_ID,
             client_secret: OURA_CLIENT_SECRET,
         }),
+        signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) throw new Error('Token refresh failed');
     const tokens = await res.json();

@@ -493,13 +493,6 @@ create table if not exists public.user_goals (
   updated_at timestamp with time zone default now()
 );
 
-create table if not exists public.water_log (
-  id uuid not null default gen_random_uuid(),
-  user_id uuid not null,
-  amount_ml integer not null,
-  logged_at timestamp with time zone not null default now()
-);
-
 create table if not exists public.wearable_connections (
   id uuid not null default gen_random_uuid(),
   user_id uuid,
@@ -551,7 +544,7 @@ alter table public.body_scans add constraint body_scans_pkey primary key (id);
 alter table public.chat_history add constraint chat_history_pkey primary key (id);
 alter table public.cycle_log add constraint cycle_log_pkey primary key (id);
 alter table public.cycle_log add constraint cycle_log_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
-alter table public.cycle_log add constraint cycle_log_event_type_check check (event_type = any (array['period_start','period_end','symptom']));
+alter table public.cycle_log add constraint cycle_log_event_type_check check (event_type = any (array['period_start','period_end','symptom','ovulation']));
 alter table public.cycle_log add constraint cycle_log_flow_check check (flow is null or flow = any (array['light','medium','heavy']));
 alter table public.daily_nutrition add constraint daily_nutrition_pkey primary key (id);
 alter table public.daily_nutrition add constraint daily_nutrition_user_id_date_key unique (user_id, date);
@@ -615,8 +608,6 @@ alter table public.user_consents add constraint user_consents_document_check che
 alter table public.user_goals add constraint user_goals_pkey primary key (id);
 alter table public.user_goals add constraint user_goals_user_id_key unique (user_id);
 alter table public.user_goals add constraint user_goals_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
-alter table public.water_log add constraint water_log_pkey primary key (id);
-alter table public.water_log add constraint water_log_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade;
 alter table public.wearable_connections add constraint wearable_connections_pkey primary key (id);
 alter table public.wearable_connections add constraint wearable_connections_user_id_provider_key unique (user_id, provider);
 alter table public.weekly_reports add constraint weekly_reports_pkey primary key (id);
@@ -639,6 +630,10 @@ alter table public.stool_scans add constraint stool_scans_user_id_fkey foreign k
 alter table public.wearable_connections add constraint wearable_connections_user_id_fkey foreign key (user_id) references public.profiles(id) on delete cascade;
 alter table public.weekly_scores add constraint weekly_scores_user_id_fkey foreign key (user_id) references public.profiles(id) on delete cascade;
 
+-- Sequences are owned by their serial columns (dropped with the table, as live).
+alter sequence public.products_id_seq owned by public.products.id;
+alter sequence public.scan_history_id_seq owned by public.scan_history.id;
+
 -- ── Indexes ───────────────────────────────────────────────────
 create index if not exists api_cost_log_logged_at_idx on public.api_cost_log (logged_at desc);
 create index if not exists api_cost_log_route_logged_at_idx on public.api_cost_log (route, logged_at desc);
@@ -648,7 +643,6 @@ create index if not exists biomarker_scans_user_scanned_idx on public.biomarker_
 create index if not exists idx_body_scans_user on public.body_scans (user_id, scanned_at desc);
 create index if not exists idx_chat_user on public.chat_history (user_id, created_at);
 create index if not exists cycle_log_user_date_idx on public.cycle_log (user_id, date desc);
-create index if not exists daily_nutrition_user_date_idx on public.daily_nutrition (user_id, date);
 create index if not exists environment_logs_user_logged_idx on public.environment_logs (user_id, logged_at desc);
 create index if not exists exercise_log_user_logged_at_idx on public.exercise_log (user_id, logged_at desc);
 create index if not exists idx_exercise_user on public.exercise_log (user_id, date desc);
@@ -665,23 +659,18 @@ create index if not exists health_predictions_user_gen_idx on public.health_pred
 create index if not exists hr_readings_user_id_idx on public.hr_readings (user_id);
 create index if not exists hygiene_scans_user_scanned_idx on public.hygiene_scans (user_id, scanned_at desc);
 create index if not exists idx_lab_results_user on public.lab_results (user_id, collected_at desc);
-create index if not exists lab_results_user_collected_idx on public.lab_results (user_id, collected_at desc);
 create index if not exists idx_meals_user on public.meals (user_id, logged_at desc);
-create index if not exists meals_user_logged_at_idx on public.meals (user_id, logged_at desc);
 create index if not exists medication_log_user_active_idx on public.medication_log (user_id, active);
 create index if not exists practitioner_links_client_id_idx on public.practitioner_links (client_id);
 create index if not exists idx_product_scans_user on public.product_scans (user_id, scanned_at desc);
-create index if not exists idx_products_barcode on public.products (barcode);
 create index if not exists idx_scan_history_user on public.scan_history (user_id, scanned_at desc);
 create index if not exists scan_history_barcode_idx on public.scan_history (barcode);
 create index if not exists sleep_log_user_id_idx on public.sleep_log (user_id);
 create index if not exists stool_scans_user_id_idx on public.stool_scans (user_id);
 create index if not exists supplement_logs_user_active_idx on public.supplement_logs (user_id, active);
-create index if not exists usage_tracking_user_feature on public.usage_tracking (user_id, feature, window_start);
 create unique index if not exists usage_tracking_user_feature_window_uidx on public.usage_tracking (user_id, feature, window_start);
 create index if not exists idx_user_consents_user on public.user_consents (user_id);
 create unique index if not exists uq_user_consents_latest on public.user_consents (user_id, document, version);
-create index if not exists water_log_user_logged_at_idx on public.water_log (user_id, logged_at desc);
 create index if not exists weekly_reports_user_week_idx on public.weekly_reports (user_id, week_of desc);
 
 -- ── Row-level security ────────────────────────────────────────
@@ -721,7 +710,6 @@ alter table public.tcm_profile enable row level security;
 alter table public.usage_tracking enable row level security;
 alter table public.user_consents enable row level security;
 alter table public.user_goals enable row level security;
-alter table public.water_log enable row level security;
 alter table public.wearable_connections enable row level security;
 alter table public.weekly_reports enable row level security;
 alter table public.weekly_scores enable row level security;
@@ -775,10 +763,9 @@ create policy user_isolation on public.stool_scans for all using ((select auth.u
 create policy supplement_logs_owner on public.supplement_logs for all using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
 create policy tcm_profile_owner on public.tcm_profile for all using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
 create policy user_isolation on public.usage_tracking for all using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
-create policy "own consents select" on public.user_consents for select using (auth.uid() = user_id);
-create policy "own consents insert" on public.user_consents for insert with check (auth.uid() = user_id);
+create policy "own consents select" on public.user_consents for select using ((select auth.uid()) = user_id);
+create policy "own consents insert" on public.user_consents for insert with check ((select auth.uid()) = user_id);
 create policy user_goals_owner on public.user_goals for all using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
-create policy "water own" on public.water_log for all using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
 create policy user_isolation on public.wearable_connections for all using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
 create policy weekly_reports_owner on public.weekly_reports for all using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
 create policy user_isolation on public.weekly_scores for all using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);

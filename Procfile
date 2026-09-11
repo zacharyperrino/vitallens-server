@@ -1,1 +1,1 @@
-web: node server.js
+web: node --import ./instrument.js server.js

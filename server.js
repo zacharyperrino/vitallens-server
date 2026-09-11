@@ -1,6 +1,6 @@
 // ─── VitalLens API Server ────────────────────────────────────
 import './env.js';
-import './instrument.js'; // Sentry.init — must load before anything else
+import './instrument.js'; // no-op when preloaded via --import (npm start); fallback for plain `node server.js`
 import * as Sentry from '@sentry/node';
 import express from 'express';
 import cors from 'cors';
@@ -37,7 +37,6 @@ import ouraRoutes from './routes/oura.js';
 import ouraPublicRoutes from './routes/oura-public.js';
 import hygieneRoutes from './routes/hygiene.js';
 import usageRoutes from './routes/usage.js';
-import waterRoutes from './routes/water.js';
 import earlyPatternsRoutes from './routes/early-patterns.js';
 import cycleRoutes from './routes/cycle.js';
 import customCorrelationRoutes from './routes/custom-correlation.js';
@@ -97,6 +96,11 @@ const globalLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Too many requests. Please try again later.' },
+    // Stripe deliveries all arrive from a handful of IPs and share one bucket;
+    // a 429 there means a retried-then-dropped payment event. The webhook
+    // authenticates itself via signature, so it needs no per-IP throttle.
+    // (Mounted at /api, so req.path is relative: '/billing/webhook'.)
+    skip: (req) => req.path === '/billing/webhook',
 });
 app.use('/api', globalLimiter);
 
@@ -110,7 +114,8 @@ app.get('/api/health', (req, res) => {
 app.get('/api/ready', async (req, res) => {
   try {
     const { supabase } = await import('./db/supabase.js');
-    const { error } = await supabase.from('profiles').select('id', { head: true, count: 'exact' }).limit(1);
+    // Cheapest possible probe: one row, no count (a count scans the table).
+    const { error } = await supabase.from('profiles').select('id').limit(1);
     if (error) throw error;
     res.json({ ready: true });
   } catch {
@@ -160,7 +165,6 @@ app.use('/api', pushRoutes);
 app.use('/api', ouraRoutes);
 app.use('/api', hygieneRoutes);
 app.use('/api', usageRoutes);
-app.use('/api', waterRoutes);
 app.use('/api', earlyPatternsRoutes);
 app.use('/api', cycleRoutes);
 app.use('/api', customCorrelationRoutes);
@@ -201,12 +205,28 @@ if (process.env.NODE_ENV !== 'test') {
     console.log(`🔬 VitalLens API running on http://localhost:${PORT}`);
   });
 
-  // Graceful shutdown: stop accepting, let in-flight AI calls finish (≤25s).
+  // Graceful shutdown: stop accepting, let in-flight AI calls finish. AI
+  // fetches retry for up to 45s and copilot tool loops run longer, so allow
+  // 60s — the platform (Railway) may still cut the process off sooner.
   const shutdown = (signal) => {
     console.log(`[Server] ${signal} received — draining connections`);
     server.close(() => process.exit(0));
-    setTimeout(() => process.exit(1), 25_000).unref();
+    setTimeout(() => process.exit(1), 60_000).unref();
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
+
+  // Crash safety. Node's default for an unhandled rejection is to exit the
+  // process — one bad async route must not take the whole API down: report
+  // it and keep serving. A genuine uncaught exception leaves state unknown:
+  // report, flush Sentry, then exit so the platform restarts us.
+  process.on('unhandledRejection', (reason) => {
+    console.error('[Server] Unhandled rejection:', reason);
+    Sentry.captureException(reason);
+  });
+  process.on('uncaughtException', (err) => {
+    console.error('[Server] Uncaught exception:', err);
+    Sentry.captureException(err);
+    Sentry.flush(2000).finally(() => process.exit(1));
+  });
 }

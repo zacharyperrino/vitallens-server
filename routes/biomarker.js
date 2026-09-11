@@ -62,7 +62,7 @@ STEP 3 — FACIAL ZONE ASSESSMENT (assess each independently):
 - Periorbital (under-eye): kidney/iron/sleep signals. Dark circle tone (purple-blue=vascular/sleep, brown=pigmentation, hollow=volume loss), puffiness severity, fine lines
 
 STEP 4 — STRUCTURAL AGING MARKERS:
-- Nasolabial fold depth: shallow=good collagen/hydration, moderate=normal aging, deep=volume loss/dehydration
+- Nasolabial fold depth: shallow, moderate, or deep (surface appearance only)
 - Forehead lines: horizontal=aging/dehydration, vertical glabellar=stress/liver, absent=youth or good skin health
 - Jowling: none/mild/moderate/significant
 - Temporal hollowing: none/mild/moderate/significant (correlates with weight loss, aging, adrenal fatigue)
@@ -85,12 +85,8 @@ Respond ONLY with valid JSON, no markdown:
   "fitzpatrick_type": "I|II|III|IV|V|VI",
   "fitzpatrick_notes": "observed skin type characteristics",
   "overall_skin_score": 78,
-  "skin_barrier": "intact|compromised_mild|compromised_moderate|compromised_severe",
-  "skin_barrier_notes": "description of barrier status",
-  "hydration": "dry|normal|oily|combination|dehydrated",
   "skin_texture": "smooth|rough|uneven|bumpy|crepe_like",
   "skin_tone_evenness": "uniform|mild_variation|significant_variation",
-  "collagen_density_estimate": "good|moderate|reduced|significantly_reduced",
   "primary_breakout_type": "none|bacterial|fungal|hormonal|seborrheic|sensitivity|rosacea_like|mixed",
   "breakout_severity": "none|mild|moderate|severe",
   "forehead_lines": {
@@ -317,8 +313,6 @@ router.post('/biomarker-scan', biomarkerLimiter, upload.single('image'), async (
 
     const scanType = req.body?.scanType || 'face';
     const userId = req.user.id; // multipart: never trust req.body.userId
-    const gate = await checkAndIncrementUsage(userId, 'biomarker_scan');
-    if (!gate.allowed) return res.status(429).json({ error: gate.message, upgradeRequired: true });
     // Wellness-observation scan types only. Clinical/condition-inference modes
     // (eye, skin, nail) are retired and hard-rejected here, not just hidden in the UI.
     const ALLOWED_SCANS = ['face', 'body', 'tongue'];
@@ -340,6 +334,10 @@ router.post('/biomarker-scan', biomarkerLimiter, upload.single('image'), async (
     } else {
       return res.status(400).json({ error: 'No image provided.' });
     }
+
+    // Usage gate only after request validation so a 400 never burns quota.
+    const gate = await checkAndIncrementUsage(userId, 'biomarker_scan');
+    if (!gate.allowed) return res.status(429).json({ error: gate.message, upgradeRequired: true });
 
     console.log(`[Biomarker] ${scanType} scan requested`);
 
@@ -373,7 +371,7 @@ router.post('/biomarker-scan', biomarkerLimiter, upload.single('image'), async (
           ],
         }],
       }),
-      signal: AbortSignal.timeout(30000),
+      timeoutMs: 30_000,
     }, { routeName: 'Biomarker' });
 
     if (!claudeRes.ok) {

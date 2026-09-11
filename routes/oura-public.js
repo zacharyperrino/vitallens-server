@@ -16,10 +16,10 @@ router.get('/oura/callback', async (req, res) => {
   const { code, state, error } = req.query;
   if (error || !code) return res.redirect(`${FRONTEND}/#/profile?oura=error`);
 
-  const userId = verifyState(state, 'oura');
-  if (!userId) return res.redirect(`${FRONTEND}/#/profile?oura=invalid_state`);
-
   try {
+    const userId = verifyState(state, 'oura');
+    if (!userId) return res.redirect(`${FRONTEND}/#/profile?oura=invalid_state`);
+
     const tokenRes = await fetch(OURA_TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

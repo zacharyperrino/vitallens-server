@@ -15,7 +15,7 @@ import { MS_PER_DAY, isoDate, todayISO } from '../utils/dates.js';
 
 const router = Router();
 
-const EVENT_TYPES = ['period_start', 'period_end', 'symptom'];
+const EVENT_TYPES = ['period_start', 'period_end', 'symptom', 'ovulation'];
 
 // POST /api/cycle/log
 router.post('/cycle/log', requireSelf('userId'), async (req, res) => {
@@ -98,7 +98,7 @@ router.get('/cycle/current', requireSelf('userId'), async (req, res) => {
 router.get('/cycle/history', requireSelf('userId'), async (req, res) => {
     try {
         const { userId } = req.query;
-        const starts = await periodStartDates(userId);
+        const [starts, events] = await Promise.all([periodStartDates(userId), recentEvents(userId)]);
 
         const cycles = [];
         for (let i = 1; i < starts.length; i++) {
@@ -107,7 +107,8 @@ router.get('/cycle/history', requireSelf('userId'), async (req, res) => {
         }
 
         const avg = cycles.length ? Math.round(cycles.reduce((a, c) => a + c.lengthDays, 0) / cycles.length) : null;
-        res.json({ cycles, averageCycleLength: avg, periodsLogged: starts.length });
+        // `events` is the raw log (newest first) the Cycle tab renders; `cycles` is the derived view.
+        res.json({ cycles, events, averageCycleLength: avg, periodsLogged: starts.length });
     } catch (err) {
         console.error('[Cycle] History failed:', err.message);
         sendError(res, err);
@@ -124,6 +125,18 @@ async function periodStartDates(userId) {
         .order('date', { ascending: true });
     if (error) throw error;
     return (data || []).map(r => r.date).filter(Boolean);
+}
+
+async function recentEvents(userId, limit = 60) {
+    const { data, error } = await supabase
+        .from('cycle_log')
+        .select('id, event_type, symptom, flow, date')
+        .eq('user_id', userId)
+        .order('date', { ascending: false })
+        .order('logged_at', { ascending: false })
+        .limit(limit);
+    if (error) throw error;
+    return data || [];
 }
 
 function cycleLengths(starts) {

@@ -12,6 +12,9 @@ import { daysAgoISO, todayISO } from '../utils/dates.js';
 
 const router = Router();
 
+// Mirrors the Substances form's category options (frontend substances.js).
+const CATEGORIES = new Set(['supplement', 'prescription', 'recreational']);
+
 function normalizeName(value) {
     return (value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
@@ -206,12 +209,16 @@ router.get('/supplements', async (req, res) => {
 // ── POST /api/supplements ─────────────────────────────────────
 router.post('/supplements', async (req, res) => {
     try {
-        const { userId, name, dose, frequency, notes } = req.body;
+        const { userId, name, dose, frequency, notes, category } = req.body;
         if (!userId || !name) return res.status(400).json({ error: 'userId and name required.' });
+        if (category && !CATEGORIES.has(category)) {
+            return res.status(400).json({ error: `category must be one of: ${[...CATEGORIES].join(', ')}.` });
+        }
 
         const { data, error } = await supabase
             .from('supplement_logs')
-            .insert({ user_id: userId, name, dose, frequency, notes, active: true })
+            // Omit category when not sent so the column default applies rather than null.
+            .insert({ user_id: userId, name, dose, frequency, notes, active: true, ...(category ? { category } : {}) })
             .select()
             .single();
 

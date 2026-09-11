@@ -20,13 +20,19 @@ export function signState(userId, provider) {
 
 export function verifyState(state, provider) {
   if (typeof state !== 'string' || !state.includes('.')) return null;
-  const idx = state.lastIndexOf('.');
-  const payload = Buffer.from(state.slice(0, idx), 'base64url').toString();
-  const sig = state.slice(idx + 1);
-  const expected = hmac(payload);
-  if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
-  const [p, userId, ts] = payload.split('.');
-  if (p !== provider || !userId) return null;
-  if (Date.now() - Number(ts) > MAX_AGE_MS) return null;
-  return userId;
+  try {
+    const idx = state.lastIndexOf('.');
+    const payload = Buffer.from(state.slice(0, idx), 'base64url').toString();
+    // Compare BYTE lengths: a multi-byte char string can match the JS string
+    // length yet make timingSafeEqual throw on mismatched buffer sizes.
+    const sig = Buffer.from(state.slice(idx + 1));
+    const expected = Buffer.from(hmac(payload));
+    if (sig.length !== expected.length || !crypto.timingSafeEqual(sig, expected)) return null;
+    const [p, userId, ts] = payload.split('.');
+    if (p !== provider || !userId) return null;
+    if (Date.now() - Number(ts) > MAX_AGE_MS) return null;
+    return userId;
+  } catch {
+    return null; // malformed input must never throw — callers redirect on null
+  }
 }

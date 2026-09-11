@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock('../../db/supabase.js', () => ({ supabase: { rpc } }));
@@ -109,6 +109,35 @@ describe('checkSpendGuard', () => {
     rpc.mockResolvedValue({ data: null, error: null });
     const r = await checkSpendGuard('user-1');
     expect(r).toMatchObject({ allowed: true, userSpend: 0, globalSpend: 0 });
+  });
+});
+
+describe('cap configuration', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it('honours an explicit 0 cap (emergency kill switch) instead of falling back to the default', async () => {
+    vi.stubEnv('MAX_USER_MONTHLY_USD', '0');
+    vi.stubEnv('MAX_USER_MONTHLY_USD_PREMIUM', '0');
+    vi.stubEnv('MAX_GLOBAL_MONTHLY_USD', '0');
+    vi.resetModules(); // caps are read at import time
+    const fresh = await import('../../services/spend-guard.js');
+
+    stubSpend();
+    const r = await fresh.checkSpendGuard('user-1');
+    expect(r).toMatchObject({ allowed: false, globalCap: 0, userCap: 0 });
+    expect((await fresh.getUserSpend('user-1', true)).cap).toBe(0);
+  });
+
+  it('falls back to the default when the cap env is unset or not a number', async () => {
+    vi.stubEnv('MAX_GLOBAL_MONTHLY_USD', 'lots');
+    vi.resetModules();
+    const fresh = await import('../../services/spend-guard.js');
+
+    stubSpend();
+    expect((await fresh.checkSpendGuard('user-1')).globalCap).toBe(250);
   });
 });
 
