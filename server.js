@@ -172,8 +172,11 @@ app.use('/api', consentsRoutes);
 // obligations (genetic-privacy law, third-party health-data sharing) and
 // have no shipped frontend. They stay unmounted until counsel signs off and
 // a proper consent flow exists. Do not remount without that review.
-// app.use('/api', practitionerRoutes);
-// app.use('/api', genomicsRoutes);
+if (process.env.ENABLE_EXPERIMENTAL_ROUTES === 'true') {
+    app.use('/api', practitionerRoutes);
+    app.use('/api', genomicsRoutes);
+    console.warn('[Server] Experimental routes ENABLED (practitioner sharing, genomics)');
+}
 
 
 // ─── Error Handler ──────────────────────────────────────────

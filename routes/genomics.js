@@ -9,7 +9,6 @@
 
 import { Router } from 'express';
 import multer from 'multer';
-import { requireSelf } from '../middleware/auth.js';
 import { supabase } from '../db/supabase.js';
 
 import { sendError } from '../utils/errors.js';
@@ -88,9 +87,9 @@ function parseRawDNA(text) {
     return map;
 }
 
-router.post('/genomics/upload', requireSelf('userId'), upload.single('file'), async (req, res) => {
+router.post('/genomics/upload', upload.single('file'), async (req, res) => {
     try {
-        const userId = req.body?.userId;
+        const userId = req.user.id; // multipart: body isn't parsed until after the guard
         let raw;
         if (req.file) raw = req.file.buffer.toString('utf-8');
         else if (req.body?.text) raw = req.body.text;
