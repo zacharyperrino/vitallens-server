@@ -96,7 +96,6 @@ function findRestaurantKey(detectedName) {
         'pizza hut': 'pizzahut', 'pizzahut': 'pizzahut',
         'kfc': 'kfc', 'kentucky fried chicken': 'kfc',
         'five guys': 'fiveguys', 'fiveguys': 'fiveguys',
-        "raising cane's": 'chipotlemexicangrill', 'raising canes': 'chipotlemexicangrill',
         'jersey mike\'s': 'jerseymikes', 'jersey mikes': 'jerseymikes',
         'raising cane\'s': 'raisingcanes', 'raising canes': 'raisingcanes', 'cane\'s': 'raisingcanes',
         'sweetgreen': 'sweetgreen', 'sweet green': 'sweetgreen',

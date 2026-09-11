@@ -38,7 +38,7 @@ export async function requireAuth(req, res, next) {
   }
   const token = authHeader.slice(7);
 
-  let user = null;
+  let user;
   try {
     user = await verifyLocally(token);
   } catch (err) {

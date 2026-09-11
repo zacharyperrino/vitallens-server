@@ -9,7 +9,12 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "node server.js",
-    "test": "vitest run",
+    "test": "vitest run --project unit",
+    "test:watch": "vitest --project unit",
+    "test:integration": "vitest run --project integration",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "eval:food": "node evals/food-scan-eval.js"
   },
   "dependencies": {
@@ -30,6 +35,10 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.10.0",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.6",
     "supertest": "^7.2.2",
     "vitest": "^4.1.7"
   }

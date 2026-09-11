@@ -32,10 +32,15 @@ jobs:
         run: |
           find . -path ./node_modules -prune -o -name '*.js' -print \
             | xargs -I{} node --check {}
+      - name: Lint
+        run: npm run lint
+      # Unit tests: fully mocked, need no secrets or network — always run.
+      - name: Unit tests
+        run: npm test
       # Security integration tests. Skipped automatically on forks / when the
       # test Supabase secrets are not configured, so CI never fails for lack
       # of credentials — configure these repo secrets to enable them.
-      - name: Security tests
+      - name: Security integration tests
         if: ${{ env.SUPABASE_URL != '' }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -45,4 +50,4 @@ jobs:
           TEST_USER_A_PASSWORD: ${{ secrets.TEST_USER_A_PASSWORD }}
           TEST_USER_B_EMAIL: ${{ secrets.TEST_USER_B_EMAIL }}
           TEST_USER_B_PASSWORD: ${{ secrets.TEST_USER_B_PASSWORD }}
-        run: npx vitest run tests/security.test.js
+        run: npm run test:integration
