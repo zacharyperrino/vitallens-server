@@ -4,8 +4,7 @@
 
 import { Router } from 'express';
 import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-dotenv.config();
+import { sendError } from '../utils/errors.js';
 
 const router = Router();
 const supabase = createClient(
@@ -30,7 +29,7 @@ router.get('/meal-memory', async (req, res) => {
         res.json({ memory: data || null });
     } catch (err) {
         console.error('[MealMemory] Fetch failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -84,7 +83,7 @@ router.post('/meal-memory', async (req, res) => {
         res.json({ saved: true });
     } catch (err) {
         console.error('[MealMemory] Save failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -105,7 +104,7 @@ router.get('/meal-memory/list', async (req, res) => {
         res.json({ memories: data || [] });
     } catch (err) {
         console.error('[MealMemory] List failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -127,7 +126,7 @@ router.delete('/meal-memory/:id', async (req, res) => {
         res.json({ deleted: true });
     } catch (err) {
         console.error('[MealMemory] Delete failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -148,7 +147,7 @@ router.get('/daily-nutrition', async (req, res) => {
         res.json({ data: data || null });
     } catch (err) {
         console.error('[DailyNutrition] Fetch failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

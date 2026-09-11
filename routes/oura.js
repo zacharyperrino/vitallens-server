@@ -5,91 +5,43 @@
 // GET  /api/oura/status?userId=      — check connection status
 
 import { Router } from 'express';
-import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-dotenv.config();
+import { supabase } from '../db/supabase.js';
+
+import { sendError } from '../utils/errors.js';
+
+import { signState } from '../services/oauth-state.js';
 
 const router = Router();
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 const OURA_CLIENT_ID = process.env.OURA_CLIENT_ID;
 const OURA_CLIENT_SECRET = process.env.OURA_CLIENT_SECRET;
-const OURA_REDIRECT_URI = process.env.OURA_REDIRECT_URI || 'https://vitallens-server-production.up.railway.app/api/oura/callback';
+const OURA_REDIRECT_URI = process.env.OURA_REDIRECT_URI
+    || `${process.env.API_PUBLIC_URL || 'http://localhost:3001'}/api/oura/callback`;
 const OURA_AUTH_URL = 'https://cloud.ouraring.com/oauth/authorize';
 const OURA_TOKEN_URL = 'https://api.ouraring.com/oauth/token';
 const OURA_API_BASE = 'https://api.ouraring.com/v2';
 
 // ── GET /api/oura/connect ─────────────────────────────────────
 router.get('/oura/connect', (req, res) => {
-    const { userId } = req.query;
-    if (!userId) return res.status(400).json({ error: 'userId required.' });
-
+    if (!OURA_CLIENT_ID || !OURA_CLIENT_SECRET) {
+        return res.status(503).json({ error: 'Oura integration is not configured on this server.' });
+    }
+    const userId = req.user.id;
     const params = new URLSearchParams({
         response_type: 'code',
         client_id: OURA_CLIENT_ID,
         redirect_uri: OURA_REDIRECT_URI,
         scope: 'daily heartrate personal session spo2 workout',
-        state: userId,
+        state: signState(userId, 'oura'),
     });
-
     console.log(`[Oura] Starting OAuth for ${userId.slice(0, 8)}`);
-    res.redirect(`${OURA_AUTH_URL}?${params}`);
-});
-
-// ── GET /api/oura/callback ────────────────────────────────────
-router.get('/oura/callback', async (req, res) => {
-    const { code, state: userId, error } = req.query;
-
-    if (error) {
-        console.error('[Oura] OAuth error:', error);
-        return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/#/profile?oura=error`);
-    }
-
-    if (!code || !userId) {
-        return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/#/profile?oura=error`);
-    }
-
-    try {
-        const tokenRes = await fetch(OURA_TOKEN_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-                grant_type: 'authorization_code',
-                code,
-                redirect_uri: OURA_REDIRECT_URI,
-                client_id: OURA_CLIENT_ID,
-                client_secret: OURA_CLIENT_SECRET,
-            }),
-        });
-
-        if (!tokenRes.ok) throw new Error('Token exchange failed');
-        const tokens = await tokenRes.json();
-
-        await supabase.from('wearable_connections').upsert({
-            user_id: userId,
-            provider: 'oura',
-            access_token: tokens.access_token,
-            refresh_token: tokens.refresh_token,
-            token_expiry: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
-            connected_at: new Date().toISOString(),
-        }, { onConflict: 'user_id,provider' });
-
-        console.log(`[Oura] Connected for ${userId.slice(0, 8)}`);
-        res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/#/profile?oura=connected`);
-
-    } catch (err) {
-        console.error('[Oura] Callback failed:', err.message);
-        res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/#/profile?oura=error`);
-    }
+    res.json({ url: `${OURA_AUTH_URL}?${params}` });
 });
 
 // ── POST /api/oura/sync ───────────────────────────────────────
 router.post('/oura/sync', async (req, res) => {
     try {
-        const { userId } = req.body;
+        const userId = req.user.id;
         if (!userId) return res.status(400).json({ error: 'userId required.' });
 
         const { data: connection } = await supabase
@@ -173,14 +125,14 @@ router.post('/oura/sync', async (req, res) => {
 
     } catch (err) {
         console.error('[Oura] Sync failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
 // ── GET /api/oura/status ──────────────────────────────────────
 router.get('/oura/status', async (req, res) => {
     try {
-        const { userId } = req.query;
+        const userId = req.user.id;
         if (!userId) return res.status(400).json({ error: 'userId required.' });
 
         const { data } = await supabase

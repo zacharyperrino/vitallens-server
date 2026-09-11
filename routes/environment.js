@@ -3,8 +3,9 @@
 // Geocodes location, fetches real-time air quality + EPA water data
 
 import { Router } from 'express';
-import dotenv from 'dotenv';
-dotenv.config();
+import { supabase } from '../db/supabase.js';
+
+import { sendError } from '../utils/errors.js';
 
 const router = Router();
 
@@ -104,8 +105,7 @@ router.get('/environment/latest', async (req, res) => {
         if (!userId) return res.status(400).json({ error: 'userId required' });
 
         const { createClient } = await import('@supabase/supabase-js');
-        const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-
+        
         const { data, error } = await supabase
             .from('environment_logs')
             .select('*')
@@ -118,7 +118,7 @@ router.get('/environment/latest', async (req, res) => {
         res.json({ environment: data || null });
     } catch (err) {
         console.error('[Environment] Latest fetch failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -154,8 +154,7 @@ router.get('/environment', async (req, res) => {
         if (userId) {
             try {
                 const { createClient } = await import('@supabase/supabase-js');
-                const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-                await supabase.from('environment_logs').insert({
+                                await supabase.from('environment_logs').insert({
                     user_id: userId,
                     location: geo.displayName,
                     aqi: airData.aqi || null,
@@ -180,7 +179,7 @@ router.get('/environment', async (req, res) => {
 
     } catch (err) {
         console.error('[Environment] Failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

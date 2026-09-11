@@ -1,8 +1,5 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
-dotenv.config();
-
 const router = Router();
 
 const nutritionLimiter = rateLimit({ windowMs: 60 * 1000, max: 200 });

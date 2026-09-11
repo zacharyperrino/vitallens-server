@@ -9,12 +9,11 @@
 // additionally check req.user.id against the caller-claimed id.
 
 import { Router } from 'express';
-import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-dotenv.config();
+import { supabase } from '../db/supabase.js';
+
+import { sendError } from '../utils/errors.js';
 
 const router = Router();
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 // POST /api/practitioner/invite — client invites a practitioner by email
 router.post('/practitioner/invite', async (req, res) => {
@@ -54,7 +53,7 @@ router.post('/practitioner/invite', async (req, res) => {
         res.json({ invited: true, link: data });
     } catch (err) {
         console.error('[Practitioner] Invite failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -79,7 +78,7 @@ router.post('/practitioner/accept', async (req, res) => {
         res.json({ accepted: true, link: data });
     } catch (err) {
         console.error('[Practitioner] Accept failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -104,7 +103,7 @@ router.post('/practitioner/revoke', async (req, res) => {
         res.json({ revoked: true, link: data });
     } catch (err) {
         console.error('[Practitioner] Revoke failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -139,7 +138,7 @@ router.get('/practitioner/clients', async (req, res) => {
         res.json({ clients });
     } catch (err) {
         console.error('[Practitioner] Clients failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -187,7 +186,7 @@ router.get('/practitioner/client-data', async (req, res) => {
         });
     } catch (err) {
         console.error('[Practitioner] Client-data failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

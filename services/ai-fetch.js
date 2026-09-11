@@ -1,55 +1,36 @@
 // ─── AI Fetch with Retry ──────────────────────────────────────
-// Wraps fetch calls to Claude/GPT with exponential backoff retry.
-// Returns a graceful error message on final failure instead of
-// surfacing raw API errors to users.
+// Exponential backoff with jitter, bounded by a TOTAL time budget so a
+// flaky provider can never hold a request for minutes.
 
-/**
- * Fetch with exponential backoff retry.
- * Retries on 429, 500, 502, 503, 504.
- * Throws on final failure with a user-safe message.
- *
- * @param {string} url
- * @param {RequestInit} options
- * @param {object} config
- * @param {number} config.retries - number of retries (default 3)
- * @param {number} config.baseDelay - base delay in ms (default 1000)
- * @param {string} config.routeName - for logging
- * @returns {Promise<Response>}
- */
-export async function fetchWithRetry(url, options, { retries = 3, baseDelay = 1000, routeName = 'AI' } = {}) {
+const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+
+export async function fetchWithRetry(url, options, {
+  retries = 3, baseDelay = 1000, maxTotalMs = 45_000, routeName = 'AI',
+} = {}) {
+  const startedAt = Date.now();
   let lastError;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
+    const elapsed = Date.now() - startedAt;
+    if (elapsed >= maxTotalMs) break;
+
     try {
       const res = await fetch(url, options);
-
-      // Retryable status codes
-      if ([429, 500, 502, 503, 504].includes(res.status) && attempt < retries) {
-        const delay = baseDelay * Math.pow(2, attempt);
-        console.warn(`[${routeName}] HTTP ${res.status} — retrying in ${delay}ms (attempt ${attempt + 1}/${retries})`);
-        await sleep(delay);
-        continue;
-      }
-
-      return res;
+      if (!RETRYABLE.has(res.status) || attempt === retries) return res;
+      lastError = new Error(`HTTP ${res.status}`);
     } catch (err) {
       lastError = err;
-
-      // Timeout or network error — retry
-      if (attempt < retries) {
-        const delay = baseDelay * Math.pow(2, attempt);
-        console.warn(`[${routeName}] Network error — retrying in ${delay}ms (attempt ${attempt + 1}/${retries}): ${err.message}`);
-        await sleep(delay);
-        continue;
-      }
+      if (attempt === retries) break;
     }
+
+    // Full jitter: random delay in [0, base * 2^attempt], capped by the budget.
+    const ceiling = baseDelay * Math.pow(2, attempt);
+    const delay = Math.min(Math.floor(Math.random() * ceiling), maxTotalMs - (Date.now() - startedAt));
+    if (delay <= 0) break;
+    console.warn(`[${routeName}] ${lastError?.message} — retrying in ${delay}ms (attempt ${attempt + 1}/${retries})`);
+    await new Promise(r => setTimeout(r, delay));
   }
 
-  // All retries exhausted
-  console.error(`[${routeName}] All ${retries} retries failed:`, lastError?.message);
-  throw new Error('Pattern analysis is temporarily unavailable — your data is safe. Please try again in a moment.');
-}
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  console.error(`[${routeName}] Gave up after ${Date.now() - startedAt}ms:`, lastError?.message);
+  throw new Error('The analysis service is temporarily unavailable — your data is safe. Please try again in a moment.');
 }

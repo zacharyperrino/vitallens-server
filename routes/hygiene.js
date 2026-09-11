@@ -3,23 +3,20 @@
 // GET  /api/hygiene/history — get scan history
 
 import { Router } from 'express';
-import { createClient } from '@supabase/supabase-js';
 import rateLimit from 'express-rate-limit';
 import { fetchBeautyProduct } from '../services/openBeautyFacts.js';
 import { lightLimiter } from '../services/ai-limiters.js';
-import dotenv from 'dotenv';
-dotenv.config();
+import { supabase } from '../db/supabase.js';
+
+import { sendError } from '../utils/errors.js';
 
 const router = Router();
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 // ── POST /api/hygiene/scan ────────────────────────────────────
 router.post('/hygiene/scan', lightLimiter, async (req, res) => {
     try {
-        const { barcode, userId } = req.body;
+        const { barcode } = req.body;
+        const userId = req.user.id;
         if (!barcode) return res.status(400).json({ error: 'barcode required.' });
 
         const cleanBarcode = barcode.trim().replace(/[^0-9]/g, '');
@@ -36,8 +33,8 @@ router.post('/hygiene/scan', lightLimiter, async (req, res) => {
         }
 
         // Save scan to Supabase
-        if (userId) {
-            await supabase.from('hygiene_scans').insert({
+        {
+            const { error: saveErr } = await supabase.from('hygiene_scans').insert({
                 user_id: userId,
                 barcode: cleanBarcode,
                 product_name: product.name,
@@ -49,6 +46,7 @@ router.post('/hygiene/scan', lightLimiter, async (req, res) => {
                 image_url: product.image_url,
                 scanned_at: new Date().toISOString(),
             });
+            if (saveErr) console.warn('[Hygiene] Could not save scan:', saveErr.message);
         }
 
         console.log(`[Hygiene] Scan complete — ${product.name}, safety score: ${product.safetyScore}`);
@@ -56,7 +54,7 @@ router.post('/hygiene/scan', lightLimiter, async (req, res) => {
 
     } catch (err) {
         console.error('[Hygiene] Scan failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -76,7 +74,7 @@ router.get('/hygiene/history', async (req, res) => {
         if (error) throw error;
         res.json({ scans: data || [] });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

@@ -6,16 +6,12 @@
 // their own data.
 
 import { Router } from 'express';
-import { createClient } from '@supabase/supabase-js';
 import { requireSelf } from '../middleware/auth.js';
-import dotenv from 'dotenv';
-dotenv.config();
+import { supabase } from '../db/supabase.js';
+
+import { sendError } from '../utils/errors.js';
 
 const router = Router();
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 // Local-midnight ISO string, matching the convention used elsewhere.
 function startOfToday() {
@@ -47,7 +43,7 @@ router.post('/water/log', requireSelf('userId'), async (req, res) => {
         res.json({ logged: true, entry: data });
     } catch (err) {
         console.error('[Water] Log failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -70,7 +66,7 @@ router.get('/water/today', requireSelf('userId'), async (req, res) => {
         res.json({ date: today, total_ml, entries });
     } catch (err) {
         console.error('[Water] Today fetch failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -105,7 +101,7 @@ router.get('/water/history', requireSelf('userId'), async (req, res) => {
         res.json({ days, history });
     } catch (err) {
         console.error('[Water] History fetch failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

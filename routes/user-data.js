@@ -9,10 +9,10 @@
 // ─────────────────────────────────────────────────────────────
 
 import { Router } from 'express';
-import { createClient } from '@supabase/supabase-js';
 import { requireAuth, requireSelf } from '../middleware/auth.js';
-import dotenv from 'dotenv';
-dotenv.config();
+import { supabase as adminSupabase } from '../db/supabase.js';
+
+import { sendError } from '../utils/errors.js';
 
 const router = Router();
 
@@ -20,10 +20,6 @@ const router = Router();
 // We ONLY use this for the delete route — because deleting
 // the auth user itself requires admin privileges.
 // All reads use the user's own token so RLS is enforced.
-const adminSupabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 const USER_TABLES = [
   'meals', 'daily_nutrition', 'sleep_log', 'exercise_log', 'habits',
@@ -81,7 +77,7 @@ router.get(
 
     } catch (err) {
       console.error('[DataExport] Failed:', err.message);
-      res.status(500).json({ error: err.message });
+      sendError(res, err);
     }
   }
 );
@@ -98,9 +94,9 @@ router.delete(
       const userId = req.user.id;
       const { confirmEmail } = req.body;
 
-      if (!confirmEmail) {
+      if (!confirmEmail || confirmEmail.trim().toLowerCase() !== (req.user.email || '').toLowerCase()) {
         return res.status(400).json({
-          error: 'confirmEmail is required for safety.'
+          error: 'Type your account email exactly to confirm deletion.'
         });
       }
 
@@ -149,7 +145,7 @@ router.delete(
 
     } catch (err) {
       console.error('[AccountDeletion] Failed:', err.message);
-      res.status(500).json({ error: err.message });
+      sendError(res, err);
     }
   }
 );

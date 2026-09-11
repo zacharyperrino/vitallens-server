@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { getUsageSummary } from '../services/usage-gates.js';
 import { getUserSpend } from '../services/spend-guard.js';
 
+import { sendError } from '../utils/errors.js';
+
 const router = Router();
 
 router.get('/usage/status', async (req, res) => {
@@ -11,7 +13,7 @@ router.get('/usage/status', async (req, res) => {
         const summary = await getUsageSummary(userId);
         res.json(summary);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -22,7 +24,7 @@ router.get('/usage/spend', async (req, res) => {
         const spend = await getUserSpend(userId);
         res.json(spend);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

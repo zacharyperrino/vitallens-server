@@ -7,14 +7,13 @@
 // All routes guarded by requireSelf.
 
 import { Router } from 'express';
-import { createClient } from '@supabase/supabase-js';
 import { requireSelf } from '../middleware/auth.js';
 import { ingest } from '../services/eventIngestion.js';
-import dotenv from 'dotenv';
-dotenv.config();
+import { supabase } from '../db/supabase.js';
+
+import { sendError } from '../utils/errors.js';
 
 const router = Router();
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 // POST /api/medications
 router.post('/medications', requireSelf('userId'), async (req, res) => {
@@ -49,7 +48,7 @@ router.post('/medications', requireSelf('userId'), async (req, res) => {
         res.json({ added: true, medication: data });
     } catch (err) {
         console.error('[Medications] Add failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -68,7 +67,7 @@ router.get('/medications', requireSelf('userId'), async (req, res) => {
         res.json({ medications: data || [] });
     } catch (err) {
         console.error('[Medications] List failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -98,7 +97,7 @@ router.patch('/medications/:id', requireSelf('userId'), async (req, res) => {
         res.json({ updated: true, medication: data });
     } catch (err) {
         console.error('[Medications] Update failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

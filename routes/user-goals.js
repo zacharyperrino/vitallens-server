@@ -1,11 +1,10 @@
 // ─── User Goals Route ─────────────────────────────────────────
 import { Router } from 'express';
-import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-dotenv.config();
+import { supabase } from '../db/supabase.js';
+
+import { sendError } from '../utils/errors.js';
 
 const router = Router();
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 router.get('/user-goals', async (req, res) => {
     try {
@@ -15,7 +14,7 @@ router.get('/user-goals', async (req, res) => {
         if (error && error.code !== 'PGRST116') throw error;
         res.json({ goals: data || null });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -31,7 +30,7 @@ router.post('/user-goals', async (req, res) => {
         console.log(`[UserGoals] Saved for ${userId.slice(0, 8)}`);
         res.json({ saved: true });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

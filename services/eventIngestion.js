@@ -7,16 +7,8 @@
 // exists with embedding = null and will be picked up by a
 // background job (see the /api/embed-pending route).
 
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../db/supabase.js';
 import { embed, buildDescription } from './embeddingService.js';
-import dotenv from 'dotenv';
-dotenv.config();
-
-// Use the service role key here (server-side only, bypasses RLS)
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
-);
 
 // ── Core ingestion function ───────────────────────────────────
 
@@ -57,7 +49,7 @@ export async function ingestEvent(userId, eventType, data, sourceId = null, even
     console.log(`[Ingest] Event inserted: ${eventType} ${eventId}`);
 
     // ── Embed asynchronously (don't await — don't block caller) ──
-    embedEventAsync(eventId, description);
+    embedEventAsync(eventId, description, userId);
 
     return eventId;
 }
@@ -66,9 +58,9 @@ export async function ingestEvent(userId, eventType, data, sourceId = null, even
  * Embed a single health_event row by ID.
  * Called async from ingestEvent, and also by the /api/embed-pending route.
  */
-export async function embedEvent(eventId, description) {
+export async function embedEvent(eventId, description, userId = null) {
     try {
-        const vector = await embed(description);
+        const vector = await embed(description, { userId, route: 'embed-event' });
 
         const { error } = await supabase
             .from('health_events')
@@ -86,9 +78,9 @@ export async function embedEvent(eventId, description) {
     }
 }
 
-function embedEventAsync(eventId, description) {
+function embedEventAsync(eventId, description, userId) {
     // Fire and forget — errors are logged but don't propagate
-    Promise.resolve().then(() => embedEvent(eventId, description)).catch(() => { });
+    Promise.resolve().then(() => embedEvent(eventId, description, userId)).catch(() => { });
 }
 
 // ── Metadata sanitizer ────────────────────────────────────────

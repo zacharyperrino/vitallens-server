@@ -11,18 +11,14 @@
 //   Claude Haiku 4.5: $0.80 / 1M input,   $4.00 / 1M output
 // ─────────────────────────────────────────────────────────────
 
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+import { supabase } from '../db/supabase.js';
 
 const PRICING = {
   'gpt-4o': {
     input_per_1m:  2.50,
     output_per_1m: 10.00,
-    image_high_detail: 0.00170, // flat per high-detail image
+    // Vision input is billed as ordinary prompt tokens (already in usage.prompt_tokens);
+    // no separate flat fee, or scans are over-reported by ~10%.
   },
   'claude-sonnet-4-20250514': {
     input_per_1m:  3.00,
@@ -31,6 +27,10 @@ const PRICING = {
   'claude-haiku-4-5-20251001': {
     input_per_1m:  0.80,
     output_per_1m:  4.00,
+  },
+  'text-embedding-3-small': {
+    input_per_1m:  0.02,
+    output_per_1m: 0,
   },
 };
 

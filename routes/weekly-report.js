@@ -3,19 +3,19 @@
 // GET  /api/weekly-report/latest?userId=
 
 import { Router } from "express";
-import { createClient } from "@supabase/supabase-js";
 import { buildFullContext, snapshotToText } from "../services/context-builder.js";
-import dotenv from "dotenv";
 import { WeeklyReportSchema, validateOrThrow } from '../services/ai-validators.js';
-dotenv.config();
 import { heavyAILimiter } from '../services/ai-limiters.js';
 import { fetchWithRetry } from '../services/ai-fetch.js';
 import { checkAndIncrementUsage } from '../services/usage-gates.js';
 import { trackCost } from '../services/cost-tracker.js';
 
 import { WELLNESS_SYSTEM_PROMPT } from '../services/prompts.js';
+import { supabase } from '../db/supabase.js';
+
+import { sendError } from '../utils/errors.js';
+
 const router = Router();
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 
 const REPORT_PROMPT = `You are a personal wellness journal summarizer. Generate a warm, observational weekly patterns summary based on the user's logged data. Be specific and data-grounded. Use the user's actual numbers.
@@ -116,7 +116,7 @@ catch (e) { return res.status(422).json({ error: e.message }); }
 
     } catch (err) {
         console.error("[WeeklyReport] Failed:", err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -136,7 +136,7 @@ router.get("/weekly-report/latest", async (req, res) => {
         if (error) throw error;
         res.json({ reports: data || [] });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -148,12 +148,6 @@ router.get("/weekly-report/narrative", heavyAILimiter, async (req, res) => {
         if (!apiKey) return res.status(500).json({ error: "Anthropic API key not configured." });
         const { userId } = req.query;
 if (!userId) return res.status(400).json({ error: "userId required." });
-
-// ── Usage gate ────────────────────────────────────────────
-const narrativeGate = await checkAndIncrementUsage(userId, 'narrative');
-if (!narrativeGate.allowed) return res.status(429).json({ error: narrativeGate.message, upgradeRequired: true });
-
-// Pull last 12 weekly reports
 
         // Pull last 12 weekly reports
         const { data: reports, error } = await supabase
@@ -171,11 +165,11 @@ if (!narrativeGate.allowed) return res.status(429).json({ error: narrativeGate.m
         // Check if we have a cached narrative from the last 7 days
         const { data: cached } = await supabase
             .from("weekly_reports")
-            .select("narrative, narrative_generated_at")
+            .select("id, narrative, narrative_generated_at")
             .eq("user_id", userId)
             .order("week_of", { ascending: false })
             .limit(1)
-            .single();
+            .maybeSingle();
 
         if (cached?.narrative && cached?.narrative_generated_at) {
             const age = Date.now() - new Date(cached.narrative_generated_at).getTime();
@@ -183,6 +177,11 @@ if (!narrativeGate.allowed) return res.status(429).json({ error: narrativeGate.m
                 return res.json({ narrative: cached.narrative, cached: true });
             }
         }
+
+        // Usage gate — only AFTER the cache check so a cached read never burns
+        // the user's 1-per-month allowance.
+        const narrativeGate = await checkAndIncrementUsage(userId, 'narrative');
+        if (!narrativeGate.allowed) return res.status(429).json({ error: narrativeGate.message, upgradeRequired: true });
 
         const reportsText = reports.reverse().map((r, i) => 
             `Week ${i + 1} (${r.week_of}): Score ${r.week_score}/100 — ${r.headline}`
@@ -238,22 +237,26 @@ Respond ONLY with valid JSON, no markdown:
 
         const raw = claudeData.content?.[0]?.text || '';
         const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        const narrative = JSON.parse(cleaned);
+        let narrative;
+        try { narrative = JSON.parse(cleaned); }
+        catch { return res.status(422).json({ error: 'Could not parse the narrative response.' }); }
 
-        // Cache the narrative on the most recent report
-        await supabase
-            .from("weekly_reports")
-            .update({ narrative, narrative_generated_at: new Date().toISOString() })
-            .eq("user_id", userId)
-            .order("week_of", { ascending: false })
-            .limit(1);
+        // Cache on the most recent report, addressed by primary key (PostgREST
+        // does not support ORDER/LIMIT on UPDATE).
+        if (cached?.id) {
+            const { error: cacheErr } = await supabase
+                .from("weekly_reports")
+                .update({ narrative, narrative_generated_at: new Date().toISOString() })
+                .eq("id", cached.id);
+            if (cacheErr) console.warn('[WeeklyReport] Narrative cache write failed:', cacheErr.message);
+        }
 
         console.log(`[WeeklyReport] Narrative generated for ${userId.slice(0, 8)} — ${reports.length} weeks analyzed`);
         res.json({ narrative, cached: false });
 
     } catch (err) {
         console.error('[WeeklyReport] Narrative failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

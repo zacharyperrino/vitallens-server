@@ -3,10 +3,7 @@
 // POST /api/health-copilot
 
 import { Router } from "express";
-import { createClient } from "@supabase/supabase-js";
 import { buildFullContext, snapshotToText } from "../services/context-builder.js";
-import dotenv from "dotenv";
-dotenv.config();
 import { copilotLimiter } from '../services/ai-limiters.js';
 import { fetchWithRetry } from '../services/ai-fetch.js';
 import { sanitizeContextFields, sanitizeUserInput } from '../services/sanitize.js';
@@ -15,8 +12,11 @@ import { trackCost } from '../services/cost-tracker.js';
 import { retrieveRelevantHistory } from '../services/rag.js';
 import { INTERNAL_API_BASE } from '../config.js';
 
+import { supabase } from '../db/supabase.js';
+
+import { sendError } from '../utils/errors.js';
+
 const router = Router();
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 
 const WELLNESS_SYSTEM_PROMPT_BASE = `You are VitalLens, a personal wellness journal co-pilot with access to the user's logged lifestyle and wellness data. You help users notice patterns between their lifestyle choices and how they feel — and take actions on their behalf like logging meals, sleep, and exercise.
@@ -178,7 +178,8 @@ const TOOLS = [
 ];
 
 // ── Tool executor ─────────────────────────────────────────────
-async function executeTool(toolName, toolInput, userId) {
+async function executeTool(toolName, toolInput, userId, authHeader) {
+    const internalHeaders = { "Content-Type": "application/json", ...(authHeader ? { Authorization: authHeader } : {}) };
     console.log(`[CopilotTool] Executing: ${toolName}`);
 
     switch (toolName) {
@@ -255,7 +256,7 @@ async function executeTool(toolName, toolInput, userId) {
         }
 
         case "lookup_nutrition": {
-            const res = await fetch(`${INTERNAL_API_BASE}/api/nutrition/search?query=${encodeURIComponent(toolInput.food)}&grams=${toolInput.grams || 100}`, { signal: AbortSignal.timeout(15000) });
+            const res = await fetch(`${INTERNAL_API_BASE}/api/nutrition/search?query=${encodeURIComponent(toolInput.food)}&grams=${toolInput.grams || 100}`, { headers: internalHeaders, signal: AbortSignal.timeout(15000) });
             if (!res.ok) return { error: "Nutrition lookup failed" };
             const data = await res.json();
             return { food: toolInput.food, grams: toolInput.grams || 100, ...data };
@@ -264,7 +265,7 @@ async function executeTool(toolName, toolInput, userId) {
         case "run_correlation_analysis": {
             const res = await fetch(`${INTERNAL_API_BASE}/api/correlate/run`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: internalHeaders,
                 body: JSON.stringify({ userId }),
                 signal: AbortSignal.timeout(60000),
             });
@@ -276,7 +277,7 @@ async function executeTool(toolName, toolInput, userId) {
         case "generate_weekly_report": {
             const res = await fetch(`${INTERNAL_API_BASE}/api/weekly-report/generate`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: internalHeaders,
                 body: JSON.stringify({ userId }),
                 signal: AbortSignal.timeout(60000),
             });
@@ -288,7 +289,7 @@ async function executeTool(toolName, toolInput, userId) {
         case "run_predictions": {
             const res = await fetch(`${INTERNAL_API_BASE}/api/predictions/run`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: internalHeaders,
                 body: JSON.stringify({ userId }),
                 signal: AbortSignal.timeout(60000),
             });
@@ -325,8 +326,9 @@ router.post("/health-copilot", copilotLimiter, async (req, res) => {
         const apiKey = process.env.ANTHROPIC_API_KEY;
         if (!apiKey) return res.status(500).json({ error: "Anthropic API key not configured." });
 
-        const { userId, message, history = [] } = req.body;
-if (!userId || !message) return res.status(400).json({ error: "userId and message required." });
+        const userId = req.user.id;
+        const { message, history = [] } = req.body;
+        if (!message || typeof message !== 'string') return res.status(400).json({ error: "message required." });
 
 // ── Usage gate ────────────────────────────────────────────
 const gate = await checkAndIncrementUsage(userId, 'ai_chat');
@@ -334,8 +336,11 @@ if (!gate.allowed) return res.status(429).json({ error: gate.message, upgradeReq
 
         console.log(`[HealthCopilot] Query from ${userId.slice(0, 8)}: "${message.slice(0, 80)}"`);
 
-        const snapshot = await buildFullContext(userId, { window: 30 });
-        const contextText = snapshotToText(snapshot);
+        // The snapshot build (up to 15 queries) and the RAG embedding call are
+        // independent — start both now, await where used.
+        const snapshotPromise = buildFullContext(userId, { window: 30 });
+        const ragPromise = retrieveRelevantHistory(userId, message)
+            .catch(e => { console.warn('[HealthCopilot] RAG retrieval failed:', e.message); return []; });
 
         let environmentContext = "";
         try {
@@ -429,7 +434,7 @@ if (freshCorrelations.length > 0) {
         // ── RAG — retrieve similar past events (non-blocking) ─────
         let ragContext = "";
         try {
-            const pastEvents = await retrieveRelevantHistory(userId, message);
+            const pastEvents = await ragPromise;
             if (pastEvents.length > 0) {
                 ragContext = "RELEVANT PAST EVENTS (retrieved by similarity to this question):\n"
                     + pastEvents.map(e => `- ${e}`).join("\n") + "\n\n";
@@ -437,6 +442,9 @@ if (freshCorrelations.length > 0) {
         } catch (e) {
             console.warn('[HealthCopilot] RAG retrieval failed:', e.message);
         }
+
+        const snapshot = await snapshotPromise;
+        const contextText = snapshotToText(snapshot);
 
         const systemPrompt = `${WELLNESS_SYSTEM_PROMPT_BASE}
 
@@ -497,7 +505,7 @@ await trackCost({
 
             for (const toolBlock of toolUseBlocks) {
                 console.log(`[CopilotTool] ${toolBlock.name} — ${JSON.stringify(toolBlock.input).slice(0, 100)}`);
-                const result = await executeTool(toolBlock.name, toolBlock.input, userId);
+                const result = await executeTool(toolBlock.name, toolBlock.input, userId, req.headers.authorization);
                 toolsUsed.push({ name: toolBlock.name, input: toolBlock.input, result });
                 toolResults.push({ type: "tool_result", tool_use_id: toolBlock.id, content: JSON.stringify(result) });
             }
@@ -538,7 +546,7 @@ await trackCost({
 
     } catch (err) {
         console.error("[HealthCopilot] Failed:", err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

@@ -6,10 +6,9 @@
 import { Router } from 'express';
 import multer from 'multer';
 import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
-dotenv.config();
 import { fetchWithRetry } from '../services/ai-fetch.js';
 import { trackCost } from '../services/cost-tracker.js';
+import { checkAndIncrementUsage } from '../services/usage-gates.js';
 
 import { WELLNESS_SYSTEM_PROMPT } from '../services/prompts.js';
 const router = Router();
@@ -317,7 +316,9 @@ router.post('/biomarker-scan', biomarkerLimiter, upload.single('image'), async (
     if (!apiKey) return res.status(500).json({ error: 'Anthropic API key not configured.' });
 
     const scanType = req.body?.scanType || 'face';
-    const userId = req.body?.userId || null;
+    const userId = req.user.id; // multipart: never trust req.body.userId
+    const gate = await checkAndIncrementUsage(userId, 'biomarker_scan');
+    if (!gate.allowed) return res.status(429).json({ error: gate.message, upgradeRequired: true });
     // Wellness-observation scan types only. Clinical/condition-inference modes
     // (eye, skin, nail) are retired and hard-rejected here, not just hidden in the UI.
     const ALLOWED_SCANS = ['face', 'body', 'tongue'];

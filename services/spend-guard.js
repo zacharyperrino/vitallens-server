@@ -1,18 +1,19 @@
 // ─── Spend Guard ──────────────────────────────────────────────
 // Hard dollar ceiling on AI spend, enforced BEFORE any model call.
-// This is the backstop that makes surprise bills impossible: even a premium
-// user, a bug, or abuse cannot exceed the monthly caps set here.
 //
 // Caps are env-configurable (USD, per calendar month):
 //   MAX_USER_MONTHLY_USD          free-tier per-user cap   (default 5)
 //   MAX_USER_MONTHLY_USD_PREMIUM  premium per-user cap     (default 50)
 //   MAX_GLOBAL_MONTHLY_USD        whole-app cap            (default 250)
+//
+// Sums are computed by the sum_ai_spend() Postgres function — never by
+// selecting rows, which PostgREST silently caps at 1,000.
+//
+// Failure policy: the GLOBAL check fails CLOSED (an outage must not become
+// an uncapped bill); the per-user check fails open so a DB blip doesn't
+// block a single user while rate limits still apply.
 
-import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-dotenv.config();
-
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+import { supabase } from '../db/supabase.js';
 
 const USER_CAP = Number(process.env.MAX_USER_MONTHLY_USD) || 5;
 const USER_CAP_PREMIUM = Number(process.env.MAX_USER_MONTHLY_USD_PREMIUM) || 50;
@@ -20,54 +21,51 @@ const GLOBAL_CAP = Number(process.env.MAX_GLOBAL_MONTHLY_USD) || 250;
 
 function monthStartISO() {
     const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
 }
 
-async function sumSpend(filterUserId) {
-    let q = supabase
-        .from('api_cost_log')
-        .select('cost_usd')
-        .gte('logged_at', monthStartISO());
-    if (filterUserId) q = q.eq('user_id', filterUserId);
-    const { data, error } = await q;
+async function sumSpend(userId = null) {
+    const { data, error } = await supabase.rpc('sum_ai_spend', {
+        p_since: monthStartISO(),
+        p_user: userId,
+    });
     if (error) throw error;
-    return (data || []).reduce((sum, r) => sum + (Number(r.cost_usd) || 0), 0);
+    return Number(data) || 0;
 }
 
-/**
- * @param {string} userId
- * @param {boolean} premium
- * @returns {{allowed:boolean, message?:string, userSpend:number, globalSpend:number, userCap:number, globalCap:number}}
- */
 export async function checkSpendGuard(userId, premium = false) {
-    try {
-        const userCap = premium ? USER_CAP_PREMIUM : USER_CAP;
-        const [userSpend, globalSpend] = await Promise.all([
-            userId ? sumSpend(userId) : Promise.resolve(0),
-            sumSpend(null),
-        ]);
+    const userCap = premium ? USER_CAP_PREMIUM : USER_CAP;
 
-        if (globalSpend >= GLOBAL_CAP) {
-            return { allowed: false, message: 'AI features are temporarily paused (service spend cap reached). Please try again later.', userSpend, globalSpend, userCap, globalCap: GLOBAL_CAP };
+    let globalSpend;
+    try {
+        globalSpend = await sumSpend(null);
+    } catch (err) {
+        console.error('[SpendGuard] Global check failed — failing CLOSED:', err.message);
+        return { allowed: false, message: 'AI features are temporarily unavailable. Please try again shortly.', userSpend: 0, globalSpend: null, userCap, globalCap: GLOBAL_CAP };
+    }
+    if (globalSpend >= GLOBAL_CAP) {
+        return { allowed: false, message: 'AI features are temporarily paused (service spend cap reached). Please try again later.', userSpend: 0, globalSpend, userCap, globalCap: GLOBAL_CAP };
+    }
+
+    let userSpend = 0;
+    if (userId) {
+        try {
+            userSpend = await sumSpend(userId);
+        } catch (err) {
+            console.warn('[SpendGuard] User check failed, allowing:', err.message);
         }
-        if (userId && userSpend >= userCap) {
+        if (userSpend >= userCap) {
             return { allowed: false, message: 'You have reached your monthly AI usage limit. It resets at the start of next month.', userSpend, globalSpend, userCap, globalCap: GLOBAL_CAP };
         }
-        return { allowed: true, userSpend, globalSpend, userCap, globalCap: GLOBAL_CAP };
-    } catch (err) {
-        // Fail CLOSED on the global cap is safer, but a DB blip shouldn't brick
-        // the app; log loudly and allow. Per-request rate limits still apply.
-        console.warn('[SpendGuard] check failed, allowing:', err.message);
-        return { allowed: true, userSpend: 0, globalSpend: 0, userCap: USER_CAP, globalCap: GLOBAL_CAP };
     }
+    return { allowed: true, userSpend, globalSpend, userCap, globalCap: GLOBAL_CAP };
 }
 
-export async function getUserSpend(userId) {
-    const premium = false;
+export async function getUserSpend(userId, premium = false) {
     try {
         const userSpend = await sumSpend(userId);
         return { monthToDateUsd: Number(userSpend.toFixed(4)), cap: premium ? USER_CAP_PREMIUM : USER_CAP };
     } catch {
-        return { monthToDateUsd: 0, cap: USER_CAP };
+        return { monthToDateUsd: null, cap: premium ? USER_CAP_PREMIUM : USER_CAP };
     }
 }

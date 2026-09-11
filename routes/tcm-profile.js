@@ -3,15 +3,11 @@
 // GET  /api/tcm-profile?userId=  — get constitution profile
 
 import { Router } from 'express';
-import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-dotenv.config();
+import { supabase } from '../db/supabase.js';
+
+import { sendError } from '../utils/errors.js';
 
 const router = Router();
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 // ── Constitution classifier ───────────────────────────────────
 function deriveConstitution(profile) {
@@ -121,7 +117,7 @@ router.post('/tcm-profile/update', async (req, res) => {
 
     } catch (err) {
         console.error('[TCMProfile] Update failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -145,7 +141,7 @@ router.get('/tcm-profile', async (req, res) => {
         res.json({ profile: { ...data, ...constitution } });
     } catch (err) {
         console.error('[TCMProfile] Fetch failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

@@ -6,16 +6,12 @@
 import { Router } from 'express';
 import Stripe from 'stripe';
 import { requireAuth } from '../middleware/auth.js';
-import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-dotenv.config();
+import { supabase } from '../db/supabase.js';
+
+import { sendError } from '../utils/errors.js';
 
 const router = Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 // ── Price IDs — create these in Stripe dashboard ──────────────
 // Replace with your actual Stripe price IDs after creating products
@@ -59,7 +55,7 @@ router.post('/billing/create-checkout', requireAuth, async (req, res) => {
 
     } catch (err) {
         console.error('[Billing] Checkout failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -149,7 +145,7 @@ router.post('/billing/webhook', async (req, res) => {
 
     } catch (err) {
         console.error('[Billing] Webhook handler failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -178,7 +174,7 @@ router.get('/billing/status', requireAuth, async (req, res) => {
 
     } catch (err) {
         console.error('[Billing] Status fetch failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

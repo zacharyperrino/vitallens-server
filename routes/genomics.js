@@ -9,13 +9,12 @@
 
 import { Router } from 'express';
 import multer from 'multer';
-import { createClient } from '@supabase/supabase-js';
 import { requireSelf } from '../middleware/auth.js';
-import dotenv from 'dotenv';
-dotenv.config();
+import { supabase } from '../db/supabase.js';
+
+import { sendError } from '../utils/errors.js';
 
 const router = Router();
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -141,7 +140,7 @@ router.post('/genomics/upload', requireSelf('userId'), upload.single('file'), as
         });
     } catch (err) {
         console.error('[Genomics] Upload failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

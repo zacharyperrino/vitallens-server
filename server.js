@@ -1,11 +1,11 @@
 // ─── VitalLens API Server ────────────────────────────────────
+import './env.js';
 import './instrument.js'; // Sentry.init — must load before anything else
 import * as Sentry from '@sentry/node';
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
 import helmet from 'helmet';
 import { requireAuth } from './middleware/auth.js';
 
@@ -14,7 +14,6 @@ import ocrRoutes from './routes/ocr.js';
 import healthScoreRoutes from './routes/health-score.js';
 import visionRoutes from './routes/vision.js';
 import ingestRoutes from './routes/ingest.js';
-import correlateRoutes from './routes/correlate.js';
 import correlationEngineRoutes from './routes/correlation-engine.js';
 import parseLabsRoutes from './routes/parse-labs.js';
 import foodCorrectionRoutes from './routes/food-correction.js';
@@ -35,6 +34,7 @@ import userDataRoutes from './routes/user-data.js';
 import billingRoutes from './routes/billing.js';
 import pushRoutes from './routes/push.js';
 import ouraRoutes from './routes/oura.js';
+import ouraPublicRoutes from './routes/oura-public.js';
 import hygieneRoutes from './routes/hygiene.js';
 import usageRoutes from './routes/usage.js';
 import waterRoutes from './routes/water.js';
@@ -46,10 +46,12 @@ import medicationsRoutes from './routes/medications.js';
 import genomicsRoutes from './routes/genomics.js';
 import consentsRoutes from './routes/consents.js';
 
-dotenv.config();
-
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Behind Railway/Vercel proxies req.ip must come from X-Forwarded-For, or every
+// user shares one rate-limit bucket.
+app.set('trust proxy', 1);
 
 // ─── Middleware ──────────────────────────────────────────────
 app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
@@ -104,7 +106,19 @@ app.use('/api', globalLimiter);
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'vitallens-api', uptime: process.uptime() });
 });
+// Readiness: proves the database is actually reachable (health above is liveness only).
+app.get('/api/ready', async (req, res) => {
+  try {
+    const { supabase } = await import('./db/supabase.js');
+    const { error } = await supabase.from('profiles').select('id', { head: true, count: 'exact' }).limit(1);
+    if (error) throw error;
+    res.json({ ready: true });
+  } catch (err) {
+    res.status(503).json({ ready: false, error: 'database unreachable' });
+  }
+});
 app.use('/api', billingRoutes);
+app.use('/api', ouraPublicRoutes); // OAuth redirect target — verified via signed state
 
 // Protected — requireAuth applies to every route below this line
 app.use('/api', requireAuth);
@@ -113,7 +127,7 @@ app.use('/api', requireAuth);
 // One seal for every authenticated route, current and future: if a
 // request names a userId anywhere, it must be the caller's own.
 app.use('/api', (req, res, next) => {
-    const claimed = req.query?.userId || req.body?.userId;
+    const claimed = req.query?.userId || req.body?.userId || req.query?.user_id || req.body?.user_id;
     if (claimed && claimed !== req.user.id) {
         return res.status(403).json({ error: 'Forbidden.' });
     }
@@ -125,7 +139,6 @@ app.use('/api', ocrRoutes);
 app.use('/api', healthScoreRoutes);
 app.use('/api', visionRoutes);
 app.use('/api', ingestRoutes);
-app.use('/api', correlateRoutes);
 app.use('/api', correlationEngineRoutes);
 app.use('/api', parseLabsRoutes);
 app.use('/api', foodCorrectionRoutes);
@@ -181,8 +194,16 @@ app.use((err, req, res, _next) => {
 export default app;
 
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`🔬 VitalLens API running on http://localhost:${PORT}`);
-    console.log(`   Routes mounted: ${PORT}`);
   });
+
+  // Graceful shutdown: stop accepting, let in-flight AI calls finish (≤25s).
+  const shutdown = (signal) => {
+    console.log(`[Server] ${signal} received — draining connections`);
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(1), 25_000).unref();
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }

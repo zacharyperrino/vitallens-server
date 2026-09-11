@@ -5,16 +5,12 @@
 // GET  /api/portion-corrections  — get portion corrections for prompt injection
 
 import { Router } from 'express';
-import { createClient } from '@supabase/supabase-js';
 import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
-dotenv.config();
+import { supabase } from '../db/supabase.js';
+
+import { sendError } from '../utils/errors.js';
 
 const router = Router();
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 const correctionLimiter = rateLimit({
     windowMs: 60 * 1000,
@@ -71,7 +67,7 @@ router.post('/food-correction', correctionLimiter, async (req, res) => {
         res.json({ saved: true });
     } catch (err) {
         console.error('[Correction] Save failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -104,7 +100,7 @@ router.get('/food-corrections', async (req, res) => {
         res.json({ corrections: deduped });
     } catch (err) {
         console.error('[Correction] Fetch failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -161,7 +157,7 @@ router.post('/portion-correction', correctionLimiter, async (req, res) => {
         res.json({ saved: true });
     } catch (err) {
         console.error('[PortionCorrection] Save failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -184,7 +180,7 @@ router.get('/portion-corrections', async (req, res) => {
         res.json({ portions: data || [] });
     } catch (err) {
         console.error('[PortionCorrection] Fetch failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

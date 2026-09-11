@@ -10,11 +10,8 @@ import { Router } from 'express';
 import multer from 'multer';
 import rateLimit from 'express-rate-limit';
 import { execSync } from 'child_process';
-import dotenv from 'dotenv';
 import { checkAndIncrementUsage } from '../services/usage-gates.js';
 import { trackCost } from '../services/cost-tracker.js';
-dotenv.config();
-
 const router = Router();
 
 const upload = multer({
@@ -65,12 +62,10 @@ router.post('/parse-labs', labLimiter, upload.single('pdf'), async (req, res, ne
         const apiKey = process.env.OPENAI_API_KEY;
         if (!apiKey) return res.status(500).json({ error: 'OpenAI API key not configured.' });
 
-        // ── Usage gate ────────────────────────────────────────
-        const userId = req.body?.userId;
-        if (userId) {
-            const gate = await checkAndIncrementUsage(userId, 'lab_upload');
-            if (!gate.allowed) return res.status(429).json({ error: gate.message, upgradeRequired: true });
-        }
+        // Multipart: derive the user from the JWT, never req.body.
+        const userId = req.user.id;
+        const gate = await checkAndIncrementUsage(userId, 'lab_upload');
+        if (!gate.allowed) return res.status(429).json({ error: gate.message, upgradeRequired: true });
 
         let labText = '';
 

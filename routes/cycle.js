@@ -6,14 +6,13 @@
 // health_events (via eventIngestion) for correlation analysis.
 
 import { Router } from 'express';
-import { createClient } from '@supabase/supabase-js';
 import { requireSelf } from '../middleware/auth.js';
 import { ingest } from '../services/eventIngestion.js';
-import dotenv from 'dotenv';
-dotenv.config();
+import { supabase } from '../db/supabase.js';
+
+import { sendError } from '../utils/errors.js';
 
 const router = Router();
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 const EVENT_TYPES = ['period_start', 'period_end', 'symptom'];
 const MS_PER_DAY = 86400000;
@@ -52,7 +51,7 @@ router.post('/cycle/log', requireSelf('userId'), async (req, res) => {
         res.json({ logged: true, entry: data });
     } catch (err) {
         console.error('[Cycle] Log failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -92,7 +91,7 @@ router.get('/cycle/current', requireSelf('userId'), async (req, res) => {
         });
     } catch (err) {
         console.error('[Cycle] Current failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -112,7 +111,7 @@ router.get('/cycle/history', requireSelf('userId'), async (req, res) => {
         res.json({ cycles, averageCycleLength: avg, periodsLogged: starts.length });
     } catch (err) {
         console.error('[Cycle] History failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

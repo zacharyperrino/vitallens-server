@@ -5,15 +5,15 @@
 // Sonnet to describe any relationship in plain wellness language.
 
 import { Router } from 'express';
-import { createClient } from '@supabase/supabase-js';
 import { requireSelf } from '../middleware/auth.js';
 import { fetchWithRetry } from '../services/ai-fetch.js';
 import { trackCost } from '../services/cost-tracker.js';
-import dotenv from 'dotenv';
-dotenv.config();
+import { checkAndIncrementUsage } from '../services/usage-gates.js';
+import { supabase } from '../db/supabase.js';
+
+import { sendError } from '../utils/errors.js';
 
 const router = Router();
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-haiku-4-5-20251001';
 
@@ -112,7 +112,10 @@ async function pullSeries(variable, userId, sinceIso) {
 router.post('/custom-correlation', requireSelf('userId'), async (req, res) => {
     try {
         if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: 'Anthropic API key not configured.' });
-        const { userId, variableA, variableB, days = 30 } = req.body;
+        const { userId, variableA, variableB } = req.body;
+        const days = Math.min(180, Math.max(7, parseInt(req.body.days, 10) || 30)); // bound prompt size
+        const gate = await checkAndIncrementUsage(userId, 'custom_correlation');
+        if (!gate.allowed) return res.status(429).json({ error: gate.message, upgradeRequired: true });
         if (!variableA || !variableB) return res.status(400).json({ error: 'variableA and variableB are required.' });
 
         const windowDays = Math.min(Math.max(parseInt(days, 10) || 30, 7), 180);
@@ -197,7 +200,7 @@ Describe any relationship you notice between these two variables in plain, suppo
         res.json({ relationship, dataPoints, confidence });
     } catch (err) {
         console.error('[CustomCorrelation] Failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

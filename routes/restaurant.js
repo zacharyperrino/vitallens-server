@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { RESTAURANT_DB, detectRestaurant, matchMenuItem } from '../data/restaurants.js';
 
+import { sendError } from '../utils/errors.js';
+
 const router = Router();
 
 // POST /api/restaurant/detect
@@ -59,7 +61,7 @@ router.post('/restaurant/detect', async (req, res) => {
         });
 
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

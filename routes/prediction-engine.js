@@ -3,19 +3,19 @@
 // GET  /api/predictions/latest  — get stored trend patterns
 
 import { Router } from "express";
-import { createClient } from "@supabase/supabase-js";
 import { buildFullContext, snapshotToText } from "../services/context-builder.js";
-import dotenv from "dotenv";
 import { PredictionSchema, validateOrThrow } from '../services/ai-validators.js';
-dotenv.config();
 import { heavyAILimiter } from '../services/ai-limiters.js';
 import { fetchWithRetry } from '../services/ai-fetch.js';
 import { checkAndIncrementUsage } from '../services/usage-gates.js';
 import { trackCost } from '../services/cost-tracker.js';
 
 import { WELLNESS_SYSTEM_PROMPT } from '../services/prompts.js';
+import { supabase } from '../db/supabase.js';
+
+import { sendError } from '../utils/errors.js';
+
 const router = Router();
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 
 const PREDICTION_PROMPT = `You are a wellness trend analyst. Based on the user's logged lifestyle and wellness data, identify where their patterns are heading and what changes would have the most impact.
@@ -158,7 +158,7 @@ catch (e) { return res.status(422).json({ error: e.message }); }
 
     } catch (err) {
         console.error("[PredictionEngine] Failed:", err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -180,7 +180,7 @@ router.get("/predictions/latest", async (req, res) => {
         res.json({ prediction: data || null });
     } catch (err) {
         console.error("[PredictionEngine] Fetch failed:", err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

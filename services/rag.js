@@ -3,15 +3,8 @@
 // Embeds a query, calls the match_health_events Postgres RPC, and
 // returns the most similar past-event descriptions.
 
-import { createClient } from '@supabase/supabase-js';
 import { embed } from './embeddingService.js';
-import dotenv from 'dotenv';
-dotenv.config();
-
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+import { supabase } from '../db/supabase.js';
 
 /**
  * Retrieve the user's most relevant past health events by similarity.
@@ -25,7 +18,7 @@ export async function retrieveRelevantHistory(userId, queryText, count = 8) {
     if (!userId || !queryText || !queryText.trim()) return [];
 
     // Embed the query with the same model used for stored events (1536-dim).
-    const queryEmbedding = await embed(queryText);
+    const queryEmbedding = await embed(queryText, { userId, route: 'rag-query' });
 
     const { data, error } = await supabase.rpc('match_health_events', {
         query_embedding: queryEmbedding,

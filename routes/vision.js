@@ -6,11 +6,8 @@
 import { Router } from 'express';
 import multer from 'multer';
 import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
 import { checkAndIncrementUsage } from '../services/usage-gates.js';
 import { trackCost } from '../services/cost-tracker.js';
-dotenv.config();
-
 const router = Router();
 
 const upload = multer({
@@ -313,12 +310,11 @@ router.post('/vision-scan', visionLimiter, upload.single('image'), async (req, r
         const apiKey = process.env.OPENAI_API_KEY;
         if (!apiKey) return res.status(500).json({ error: 'OpenAI API key not configured.' });
 
-        // ── Usage gate ────────────────────────────────────────
-        const userId = req.body?.userId;
-        if (userId) {
-            const gate = await checkAndIncrementUsage(userId, 'food_vision_scan');
-            if (!gate.allowed) return res.status(429).json({ error: gate.message, upgradeRequired: true });
-        }
+        // Multipart bodies are parsed AFTER the global ownership guard, so a
+        // client-supplied userId here is unverified — always use the JWT's.
+        const userId = req.user.id;
+        const gate = await checkAndIncrementUsage(userId, 'food_vision_scan');
+        if (!gate.allowed) return res.status(429).json({ error: gate.message, upgradeRequired: true });
 
         // ── Barcode-first gate ────────────────────────────────
         // Prefer exact barcode data over GPT-4o vision. Only fall

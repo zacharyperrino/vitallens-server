@@ -5,15 +5,11 @@
 
 import { Router } from 'express';
 import webpush from 'web-push';
-import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-dotenv.config();
+import { supabase } from '../db/supabase.js';
+
+import { sendError } from '../utils/errors.js';
 
 const router = Router();
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 webpush.setVapidDetails(
     process.env.VAPID_EMAIL,
@@ -36,7 +32,7 @@ router.post('/push/subscribe', async (req, res) => {
         res.json({ success: true });
     } catch (err) {
         console.error('[Push] Subscribe failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -65,7 +61,7 @@ router.post('/push/send', async (req, res) => {
         res.json({ success: true });
     } catch (err) {
         console.error('[Push] Send failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -84,7 +80,7 @@ router.delete('/push/unsubscribe', async (req, res) => {
         res.json({ success: true });
     } catch (err) {
         console.error('[Push] Unsubscribe failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

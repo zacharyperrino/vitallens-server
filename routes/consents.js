@@ -6,12 +6,11 @@
 // matches the caller, so a user can only ever write/read their own consents.
 
 import { Router } from 'express';
-import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-dotenv.config();
+import { supabase } from '../db/supabase.js';
+
+import { sendError } from '../utils/errors.js';
 
 const router = Router();
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 // Current required documents and their versions. Bumping a version here forces
 // every user to re-consent before they can continue using sensitive features.
@@ -48,7 +47,7 @@ router.post('/consents', async (req, res) => {
         res.json({ recorded: rows.map(r => r.document) });
     } catch (err) {
         console.error('[Consents] record failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -70,7 +69,7 @@ router.get('/consents/status', async (req, res) => {
         res.json({ complete: missing.length === 0, missing, required: REQUIRED_CONSENTS });
     } catch (err) {
         console.error('[Consents] status failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

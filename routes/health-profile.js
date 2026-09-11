@@ -3,15 +3,11 @@
 // POST /api/health-profile           — save profile + targets
 
 import { Router } from 'express';
-import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-dotenv.config();
+import { supabase } from '../db/supabase.js';
+
+import { sendError } from '../utils/errors.js';
 
 const router = Router();
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 router.get('/health-profile', async (req, res) => {
     try {
@@ -28,7 +24,7 @@ router.get('/health-profile', async (req, res) => {
         res.json({ profile: data || null });
     } catch (err) {
         console.error('[HealthProfile] Fetch failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -47,7 +43,7 @@ router.post('/health-profile', async (req, res) => {
         res.json({ saved: true });
     } catch (err) {
         console.error('[HealthProfile] Save failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -119,7 +115,7 @@ router.post('/health-profile/calculate-targets', async (req, res) => {
         });
     } catch (err) {
         console.error('[HealthProfile] Target calc failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

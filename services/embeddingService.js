@@ -3,9 +3,7 @@
 // them using OpenAI text-embedding-3-small.
 // Called by the event ingestion service after every data write.
 
-import dotenv from 'dotenv';
-dotenv.config();
-
+import { trackCost } from './cost-tracker.js';
 const OPENAI_EMBED_URL = 'https://api.openai.com/v1/embeddings';
 const EMBED_MODEL = 'text-embedding-3-small'; // 1536 dims, cheap & accurate
 
@@ -16,7 +14,7 @@ const EMBED_MODEL = 'text-embedding-3-small'; // 1536 dims, cheap & accurate
  * @param {string} text
  * @returns {number[]} — 1536-dimensional vector
  */
-export async function embed(text) {
+export async function embed(text, { userId = null, route = 'embedding' } = {}) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) throw new Error('OPENAI_API_KEY not set');
 
@@ -39,6 +37,9 @@ export async function embed(text) {
     }
 
     const data = await res.json();
+    if (userId) {
+        trackCost({ userId, route, model: EMBED_MODEL, inputTokens: data.usage?.total_tokens || 0, outputTokens: 0 }).catch(() => {});
+    }
     return data.data[0].embedding;
 }
 

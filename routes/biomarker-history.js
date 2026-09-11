@@ -4,16 +4,13 @@
 // GET  /api/biomarker-history/latest?userId=&type=
 
 import { Router } from 'express';
-import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-dotenv.config();
 import { BiomarkerSchema, validateOrThrow } from '../services/ai-validators.js';
 
+import { supabase } from '../db/supabase.js';
+
+import { sendError } from '../utils/errors.js';
+
 const router = Router();
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 // ── POST /api/biomarker-history ───────────────────────────────
 router.post('/biomarker-history', async (req, res) => {
@@ -53,7 +50,7 @@ if (result) {
         res.json({ saved: true, id: data.id });
     } catch (err) {
         console.error('[BiomarkerHistory] Save failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -77,7 +74,7 @@ router.get('/biomarker-history', async (req, res) => {
         res.json({ scans: data || [] });
     } catch (err) {
         console.error('[BiomarkerHistory] Fetch failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -102,7 +99,7 @@ router.get('/biomarker-history/latest', async (req, res) => {
         });
     } catch (err) {
         console.error('[BiomarkerHistory] Latest fetch failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

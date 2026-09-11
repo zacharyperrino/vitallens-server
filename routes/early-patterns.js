@@ -5,15 +5,15 @@
 // correlation engine has enough history. Uses Claude Haiku.
 
 import { Router } from 'express';
-import { createClient } from '@supabase/supabase-js';
 import { requireSelf } from '../middleware/auth.js';
 import { fetchWithRetry } from '../services/ai-fetch.js';
 import { trackCost } from '../services/cost-tracker.js';
-import dotenv from 'dotenv';
-dotenv.config();
+import { checkAndIncrementUsage } from '../services/usage-gates.js';
+import { supabase } from '../db/supabase.js';
+
+import { sendError } from '../utils/errors.js';
 
 const router = Router();
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-haiku-4-5-20251001';
 
@@ -27,6 +27,8 @@ router.get('/early-patterns', requireSelf('userId'), async (req, res) => {
     try {
         if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: 'Anthropic API key not configured.' });
         const { userId } = req.query;
+        const gate = await checkAndIncrementUsage(userId, 'early_patterns');
+        if (!gate.allowed) return res.status(429).json({ error: gate.message, upgradeRequired: true });
 
         const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
         sevenDaysAgo.setHours(0, 0, 0, 0);
@@ -108,7 +110,7 @@ Requirements:
         res.json({ ready: true, insight, confidence: 'low', dataPoints });
     } catch (err) {
         console.error('[EarlyPatterns] Failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 

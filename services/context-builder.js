@@ -3,15 +3,8 @@
 // structured snapshot for Claude correlation + prediction.
 // Used by: health-copilot, correlation-engine, weekly-report.
 
-import { createClient } from "@supabase/supabase-js";
 import { Redis } from "@upstash/redis";
-import dotenv from "dotenv";
-dotenv.config();
-
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+import { supabase } from '../db/supabase.js';
 
 const redis = new Redis({
     url: process.env.UPSTASH_REDIS_REST_URL,
@@ -24,13 +17,13 @@ function cacheKey(userId, window) {
     return `context:${userId}:${window}`;
 }
 
+const WINDOWS = [7, 30];
+
 export async function invalidateContextCache(userId) {
     try {
-        const keys = await redis.keys(`context:${userId}:*`);
-        if (keys.length > 0) {
-            await Promise.all(keys.map(k => redis.del(k)));
-            console.log(`[ContextCache] Invalidated ${keys.length} cache entries for ${userId.slice(0, 8)}`);
-        }
+        // Only two windows exist; delete them directly (KEYS is O(keyspace)).
+        await redis.del(...WINDOWS.map(w => cacheKey(userId, w)));
+        console.log(`[ContextCache] Invalidated for ${userId.slice(0, 8)}`);
     } catch (err) {
         console.warn('[ContextCache] Invalidation failed (non-blocking):', err.message);
     }
@@ -171,6 +164,21 @@ export async function buildFullContext(userId, options = {}) {
     } catch (err) {
         console.warn('[ContextCache] Redis read failed (non-blocking):', err.message);
     }
+
+    // Single-flight: if another request is already building this snapshot,
+    // wait briefly for it instead of firing 15 more queries.
+    const lockKey = `${key}:lock`;
+    let gotLock = false;
+    try {
+        gotLock = (await redis.set(lockKey, '1', { nx: true, ex: 20 })) === 'OK';
+        if (!gotLock) {
+            for (let i = 0; i < 20; i++) {
+                await new Promise(r => setTimeout(r, 250));
+                const cached = await redis.get(key);
+                if (cached) return typeof cached === 'string' ? JSON.parse(cached) : cached;
+            }
+        }
+    } catch { /* Redis optional — fall through and build */ }
 
     console.log(`[ContextCache] MISS for ${userId.slice(0, 8)} — building from Supabase`);
 
@@ -313,6 +321,7 @@ export async function buildFullContext(userId, options = {}) {
 
     try {
         await redis.set(key, JSON.stringify(snapshot), { ex: CACHE_TTL_SECONDS });
+        if (gotLock) await redis.del(lockKey).catch(() => {});
         console.log(`[ContextCache] SET for ${userId.slice(0, 8)} (${window}d, TTL ${CACHE_TTL_SECONDS}s)`);
     } catch (err) {
         console.warn('[ContextCache] Redis write failed (non-blocking):', err.message);

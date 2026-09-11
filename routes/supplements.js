@@ -5,15 +5,11 @@
 // PATCH  /api/supplements/:id             — update (dose, frequency, active)
 
 import { Router } from 'express';
-import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-dotenv.config();
+import { supabase } from '../db/supabase.js';
+
+import { sendError } from '../utils/errors.js';
 
 const router = Router();
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 function normalizeName(value) {
     return (value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -202,7 +198,7 @@ router.get('/supplements', async (req, res) => {
         res.json({ supplements, gapAnalysis });
     } catch (err) {
         console.error('[Supplements] Fetch failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -223,7 +219,7 @@ router.post('/supplements', async (req, res) => {
         res.json({ saved: true, supplement: data });
     } catch (err) {
         console.error('[Supplements] Save failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
@@ -245,7 +241,7 @@ router.delete('/supplements/:id', async (req, res) => {
         res.json({ deleted: true });
     } catch (err) {
         console.error('[Supplements] Delete failed:', err.message);
-        res.status(500).json({ error: err.message });
+        sendError(res, err);
     }
 });
 
