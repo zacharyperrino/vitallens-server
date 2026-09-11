@@ -639,7 +639,6 @@ alter sequence public.scan_history_id_seq owned by public.scan_history.id;
 create index if not exists api_cost_log_logged_at_idx on public.api_cost_log (logged_at desc);
 create index if not exists api_cost_log_route_logged_at_idx on public.api_cost_log (route, logged_at desc);
 create index if not exists api_cost_log_user_id_logged_at_idx on public.api_cost_log (user_id, logged_at desc);
-create index if not exists api_cost_log_user_logged_idx on public.api_cost_log (user_id, logged_at);
 create index if not exists biomarker_scans_user_scanned_idx on public.biomarker_scans (user_id, scanned_at desc);
 create index if not exists idx_body_scans_user on public.body_scans (user_id, scanned_at desc);
 create index if not exists idx_chat_user on public.chat_history (user_id, created_at);
