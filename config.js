@@ -6,10 +6,8 @@
 // if the API is reachable at a different host/port than localhost:PORT
 // (e.g. behind a gateway, or when PORT differs from 3001).
 //
-// dotenv is loaded here so PORT / INTERNAL_API_BASE are resolved from .env
-// before the constant is computed.
-import dotenv from 'dotenv';
-dotenv.config();
+// .env is loaded once by env.js (the first import of every entrypoint), so
+// PORT / INTERNAL_API_BASE are already resolved when this evaluates.
 
 export const INTERNAL_API_BASE =
   process.env.INTERNAL_API_BASE || `http://localhost:${process.env.PORT || 3001}`;

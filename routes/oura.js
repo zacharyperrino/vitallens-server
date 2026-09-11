@@ -8,6 +8,7 @@ import { Router } from 'express';
 import { supabase } from '../db/supabase.js';
 
 import { sendError } from '../utils/errors.js';
+import { daysAgoISO, todayISO } from '../utils/dates.js';
 
 import { signState } from '../services/oauth-state.js';
 
@@ -59,8 +60,8 @@ router.post('/oura/sync', async (req, res) => {
             accessToken = await refreshOuraToken(userId, connection.refresh_token);
         }
 
-        const today = new Date().toISOString().split('T')[0];
-        const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+        const today = todayISO();
+        const sevenDaysAgo = daysAgoISO(7);
 
         // Fetch sleep, readiness, activity, HRV in parallel
         const [sleepRes, readinessRes, activityRes] = await Promise.allSettled([
@@ -146,7 +147,8 @@ router.get('/oura/status', async (req, res) => {
             connected: !!data,
             connectedAt: data?.connected_at || null,
         });
-    } catch (err) {
+    } catch {
+        // Soft probe: a lookup failure reads as "not connected", never as a 500.
         res.json({ connected: false });
     }
 });

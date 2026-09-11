@@ -4,6 +4,7 @@
 // Called by the event ingestion service after every data write.
 
 import { trackCost } from './cost-tracker.js';
+import { isoDate } from '../utils/dates.js';
 const OPENAI_EMBED_URL = 'https://api.openai.com/v1/embeddings';
 const EMBED_MODEL = 'text-embedding-3-small'; // 1536 dims, cheap & accurate
 
@@ -43,12 +44,12 @@ export async function embed(text, { userId = null, route = 'embedding' } = {}) {
     return data.data[0].embedding;
 }
 
-// ── Description builders ──────────────────────────────────────
+// ── Description builders (module-private; reached via buildDescription) ──
 // These build the human-readable text that gets embedded.
 // The richer and more specific the description, the better
 // the similarity search will work across your health history.
 
-export function buildMealDescription(meal) {
+function buildMealDescription(meal) {
     const foods = Array.isArray(meal.foods)
         ? meal.foods.map(f => `${f.name} (${f.grams || '?'}g)`).join(', ')
         : meal.name || 'meal';
@@ -67,7 +68,7 @@ export function buildMealDescription(meal) {
     return parts.join(' ');
 }
 
-export function buildBodyScanDescription(scan) {
+function buildBodyScanDescription(scan) {
     const parts = [
         `Body scan (${scan.scan_type || scan.type}).`,
         scan.overall_score != null && `Overall score: ${scan.overall_score}/100.`,
@@ -88,7 +89,7 @@ export function buildBodyScanDescription(scan) {
     return parts.join(' ');
 }
 
-export function buildHrDescription(reading) {
+function buildHrDescription(reading) {
     return [
         `Heart rate reading: ${reading.hr} bpm.`,
         reading.hrv && `HRV: ${reading.hrv}ms.`,
@@ -97,7 +98,7 @@ export function buildHrDescription(reading) {
     ].filter(Boolean).join(' ');
 }
 
-export function buildExerciseDescription(entry) {
+function buildExerciseDescription(entry) {
     return [
         `Exercise: ${entry.name || entry.type || 'workout'}.`,
         entry.duration && `Duration: ${entry.duration} minutes.`,
@@ -109,7 +110,7 @@ export function buildExerciseDescription(entry) {
     ].filter(Boolean).join(' ');
 }
 
-export function buildSleepDescription(entry) {
+function buildSleepDescription(entry) {
     return [
         `Sleep logged.`,
         entry.hours && `Duration: ${entry.hours} hours.`,
@@ -120,7 +121,7 @@ export function buildSleepDescription(entry) {
     ].filter(Boolean).join(' ');
 }
 
-export function buildHabitDescription(entry) {
+function buildHabitDescription(entry) {
     const parts = [`Daily habits logged.`];
     if (entry.water_glasses) parts.push(`Water: ${entry.water_glasses} glasses.`);
     if (entry.smoking) parts.push('Smoking: yes.');
@@ -133,7 +134,7 @@ export function buildHabitDescription(entry) {
     return parts.join(' ');
 }
 
-export function buildLabDescription(result) {
+function buildLabDescription(result) {
     const parts = [`Lab results: ${result.panel_type || 'panel'}.`];
     if (result.lab_name) parts.push(`Lab: ${result.lab_name}.`);
     if (result.markers && typeof result.markers === 'object') {
@@ -146,7 +147,7 @@ export function buildLabDescription(result) {
     return parts.join(' ');
 }
 
-export function buildProductScanDescription(scan) {
+function buildProductScanDescription(scan) {
     return [
         `Product scanned: ${scan.name || 'unknown product'}${scan.brand ? ` by ${scan.brand}` : ''}.`,
         scan.health_score != null && `Health score: ${scan.health_score}/100 (${scan.rating || ''}).`,
@@ -154,7 +155,7 @@ export function buildProductScanDescription(scan) {
     ].filter(Boolean).join(' ');
 }
 
-export function buildSymptomDescription(symptom) {
+function buildSymptomDescription(symptom) {
     return [
         `Symptom reported: ${symptom.name || symptom.description}.`,
         symptom.severity && `Severity: ${symptom.severity}/10.`,
@@ -163,7 +164,7 @@ export function buildSymptomDescription(symptom) {
     ].filter(Boolean).join(' ');
 }
 
-export function buildCycleDescription(entry) {
+function buildCycleDescription(entry) {
     return [
         `Cycle event: ${entry.event_type}.`,
         entry.flow && `Flow: ${entry.flow}.`,
@@ -172,11 +173,11 @@ export function buildCycleDescription(entry) {
     ].filter(Boolean).join(' ');
 }
 
-export function buildMedicationDescription(entry) {
+function buildMedicationDescription(entry) {
     // Name and timing ONLY — never any clinical interpretation.
     return [
         `Medication logged: ${entry.name}.`,
-        entry.started_at && `Started: ${new Date(entry.started_at).toISOString().split('T')[0]}.`,
+        entry.started_at && `Started: ${isoDate(entry.started_at)}.`,
     ].filter(Boolean).join(' ');
 }
 

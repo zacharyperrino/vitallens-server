@@ -5,7 +5,6 @@
 import { Router } from 'express';
 import { supabase } from '../db/supabase.js';
 import { verifyState } from '../services/oauth-state.js';
-import { sendError } from '../utils/errors.js';
 
 const router = Router();
 const FRONTEND = process.env.FRONTEND_URL?.split(',')[0]?.trim() || 'http://localhost:3000';

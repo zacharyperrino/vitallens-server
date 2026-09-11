@@ -15,9 +15,15 @@ import { INTERNAL_API_BASE } from '../config.js';
 import { supabase } from '../db/supabase.js';
 
 import { sendError } from '../utils/errors.js';
+import { daysAgo, todayISO } from '../utils/dates.js';
 
 const router = Router();
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
+// Chat runs on Haiku by design — it is fast, capable, and ~4x cheaper than
+// Sonnet. We do NOT auto-escalate on common words (the old logic sent most
+// health questions to Sonnet, the main source of surprise cost). Heavy
+// multi-domain analysis has its own dedicated, separately-gated endpoints.
+const COPILOT_MODEL = 'claude-haiku-4-5-20251001';
 
 const WELLNESS_SYSTEM_PROMPT_BASE = `You are VitalLens, a personal wellness journal co-pilot with access to the user's logged lifestyle and wellness data. You help users notice patterns between their lifestyle choices and how they feel — and take actions on their behalf like logging meals, sleep, and exercise.
 
@@ -184,7 +190,7 @@ async function executeTool(toolName, toolInput, userId, authHeader) {
 
     switch (toolName) {
         case "log_meal": {
-            const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0];
+            const today = todayISO('local');
             await supabase.from("meals").insert({
                 user_id: userId,
                 name: toolInput.name,
@@ -209,7 +215,7 @@ async function executeTool(toolName, toolInput, userId, authHeader) {
         }
 
         case "log_sleep": {
-            const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0];
+            const today = todayISO('local');
             await supabase.from("sleep_log").insert({
                 user_id: userId,
                 hours: toolInput.hours,
@@ -299,7 +305,7 @@ async function executeTool(toolName, toolInput, userId, authHeader) {
         }
 
         case "get_todays_summary": {
-            const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0];
+            const today = todayISO('local');
             const [nutritionRes, mealsRes, sleepRes, exerciseRes] = await Promise.all([
                 supabase.from("daily_nutrition").select("*").eq("user_id", userId).eq("date", today).single(),
                 supabase.from("meals").select("name, calories, logged_at").eq("user_id", userId).gte("logged_at", today).order("logged_at", { ascending: false }),
@@ -414,7 +420,7 @@ if (supplements.length > 0) {
 if (prescriptions.length > 0 || recreational.length > 0 || supplements.length > 0) correlationContext += "\n";
 
             if (corrRes.data?.length > 0) {
-                const sixtyDaysAgo = new Date(Date.now() - 60 * 86400000).toISOString();
+                const sixtyDaysAgo = daysAgo(60).toISOString();
 const freshCorrelations = corrRes.data.filter(c => !c.generated_at || c.generated_at > sixtyDaysAgo);
 if (freshCorrelations.length > 0) {
     correlationContext += "OBSERVED PATTERNS (user-logged observations only, not validated facts — treat as context, not ground truth):\n";
@@ -460,23 +466,13 @@ ${environmentContext}${correlationContext}${predictionContext}${ragContext}`;
 
 
 
-        // ── Model routing — Haiku for simple intents, Sonnet for analysis ──
-function selectModel(message) {
-    // Chat runs on Haiku by design — it is fast, capable, and ~4x cheaper than
-    // Sonnet. We do NOT auto-escalate on common words (the old logic sent most
-    // health questions to Sonnet, the main source of surprise cost). Heavy
-    // multi-domain analysis has its own dedicated, separately-gated endpoints.
-    return 'claude-haiku-4-5-20251001';
-}
-
-const selectedModel = selectModel(message);
-console.log(`[HealthCopilot] Model: ${selectedModel} for query: "${message.slice(0, 50)}"`);
+        console.log(`[HealthCopilot] Model: ${COPILOT_MODEL} for query: "${message.slice(0, 50)}"`);
 
         let response = await fetchWithRetry(ANTHROPIC_API_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
             body: JSON.stringify({
-                model: selectedModel,
+                model: COPILOT_MODEL,
                 max_tokens: 2000,
                 system: systemPrompt,
                 tools: TOOLS,
@@ -491,7 +487,7 @@ console.log(`[HealthCopilot] Model: ${selectedModel} for query: "${message.slice
 await trackCost({
   userId,
   route: 'health-copilot',
-  model: selectedModel,
+  model: COPILOT_MODEL,
   inputTokens:  claudeData.usage?.input_tokens  || 0,
   outputTokens: claudeData.usage?.output_tokens || 0,
 });
@@ -517,7 +513,7 @@ await trackCost({
                 method: "POST",
                 headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
                 body: JSON.stringify({
-                    model: selectedModel,
+                    model: COPILOT_MODEL,
                     max_tokens: 2000,
                     system: systemPrompt,
                     tools: TOOLS,
@@ -532,7 +528,7 @@ await trackCost({
 await trackCost({
   userId,
   route: 'health-copilot',
-  model: selectedModel,
+  model: COPILOT_MODEL,
   inputTokens:  claudeData.usage?.input_tokens  || 0,
   outputTokens: claudeData.usage?.output_tokens || 0,
   meta: { tool_iteration: iterations },

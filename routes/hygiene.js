@@ -3,7 +3,6 @@
 // GET  /api/hygiene/history — get scan history
 
 import { Router } from 'express';
-import rateLimit from 'express-rate-limit';
 import { fetchBeautyProduct } from '../services/openBeautyFacts.js';
 import { lightLimiter } from '../services/ai-limiters.js';
 import { supabase } from '../db/supabase.js';

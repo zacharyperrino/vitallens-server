@@ -12,6 +12,7 @@ import { checkAndIncrementUsage } from '../services/usage-gates.js';
 import { supabase } from '../db/supabase.js';
 
 import { sendError } from '../utils/errors.js';
+import { daysAgo, isoDate } from '../utils/dates.js';
 
 const router = Router();
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -66,7 +67,6 @@ const VARIABLE_MAP = {
     steps:      { table: 'habits',          value: 'steps',     dateCol: 'date',       agg: 'sum', label: 'steps' },
 };
 
-function dayKey(ts) { return new Date(ts).toISOString().split('T')[0]; }
 function round(n) { return Math.round(n * 10) / 10; }
 
 // Returns a { 'YYYY-MM-DD': number } map, {} on query error, or null
@@ -95,7 +95,7 @@ async function pullSeries(variable, userId, sinceIso) {
 
     const buckets = {};
     for (const row of data || []) {
-        const day = dayKey(row[map.dateCol]);
+        const day = isoDate(row[map.dateCol]);
         const val = map.transform ? map.transform(row[map.value]) : Number(row[map.value]);
         if (Number.isNaN(val)) continue;
         (buckets[day] ||= []).push(val);
@@ -119,7 +119,7 @@ router.post('/custom-correlation', requireSelf('userId'), async (req, res) => {
         if (!variableA || !variableB) return res.status(400).json({ error: 'variableA and variableB are required.' });
 
         const windowDays = Math.min(Math.max(parseInt(days, 10) || 30, 7), 180);
-        const since = new Date(Date.now() - windowDays * 86400000);
+        const since = daysAgo(windowDays);
         since.setHours(0, 0, 0, 0);
         const sinceIso = since.toISOString();
 

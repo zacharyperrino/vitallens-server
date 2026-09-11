@@ -5,6 +5,7 @@
 
 import { Redis } from "@upstash/redis";
 import { supabase } from '../db/supabase.js';
+import { daysAgo, daysAgoISO, todayISO } from '../utils/dates.js';
 
 const redis = new Redis({
     url: process.env.UPSTASH_REDIS_REST_URL,
@@ -27,13 +28,6 @@ export async function invalidateContextCache(userId) {
     } catch (err) {
         console.warn('[ContextCache] Invalidation failed (non-blocking):', err.message);
     }
-}
-
-function daysAgo(n) {
-    return new Date(Date.now() - n * 86400000).toISOString();
-}
-function dateStr(n = 0) {
-    return new Date(Date.now() - n * 86400000 - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0];
 }
 
 function normalizeName(value) {
@@ -182,10 +176,10 @@ export async function buildFullContext(userId, options = {}) {
 
     console.log(`[ContextCache] MISS for ${userId.slice(0, 8)} — building from Supabase`);
 
-    const today = dateStr(0);
-    const sevenDaysAgo = daysAgo(7);
-    const windowStart = daysAgo(window);
-    const ninetyStart = daysAgo(90);
+    const today = todayISO('local');
+    const sevenDaysAgo = daysAgo(7).toISOString();
+    const windowStart = daysAgo(window).toISOString();
+    const ninetyStart = daysAgo(90).toISOString();
 
     const [
         profileRes, supplementsRes, labResultsRes, tcmProfileRes,
@@ -201,13 +195,13 @@ export async function buildFullContext(userId, options = {}) {
         supabase.from("biomarker_scans").select("scan_type, score, risk_tier, scanned_at").eq("user_id", userId).gte("scanned_at", ninetyStart).order("scanned_at", { ascending: true }),
         supabase.from("environment_logs").select("location, aqi, aqi_category, pm2_5, uv_index, water_risk, logged_at").eq("user_id", userId).order("logged_at", { ascending: false }).limit(7),
         // Tier 1 — last 7 days full detail
-        supabase.from("daily_nutrition").select("date, calories, protein, carbs, fat, fiber").eq("user_id", userId).gte("date", dateStr(7)).order("date", { ascending: true }),
+        supabase.from("daily_nutrition").select("date, calories, protein, carbs, fat, fiber").eq("user_id", userId).gte("date", daysAgoISO(7, 'local')).order("date", { ascending: true }),
         supabase.from("meals").select("name, calories, protein, carbs, fat, fiber, logged_at").eq("user_id", userId).gte("logged_at", sevenDaysAgo).order("logged_at", { ascending: false }).limit(20),
-        supabase.from("sleep_log").select("hours, quality, bedtime, sleep_latency_min, wakeups, date").eq("user_id", userId).gte("date", dateStr(7)).order("date", { ascending: true }),
+        supabase.from("sleep_log").select("hours, quality, bedtime, sleep_latency_min, wakeups, date").eq("user_id", userId).gte("date", daysAgoISO(7, 'local')).order("date", { ascending: true }),
         supabase.from("exercise_log").select("type, name, duration, intensity, rpe, logged_at").eq("user_id", userId).gte("logged_at", sevenDaysAgo).order("logged_at", { ascending: false }),
         // Tier 2 — days 8-30, aggregated
-        supabase.from("daily_nutrition").select("date, calories, protein, carbs, fat, fiber").eq("user_id", userId).gte("date", dateStr(window)).lt("date", dateStr(7)).order("date", { ascending: true }),
-        supabase.from("sleep_log").select("hours, quality, date").eq("user_id", userId).gte("date", dateStr(window)).lt("date", dateStr(7)).order("date", { ascending: true }),
+        supabase.from("daily_nutrition").select("date, calories, protein, carbs, fat, fiber").eq("user_id", userId).gte("date", daysAgoISO(window, 'local')).lt("date", daysAgoISO(7, 'local')).order("date", { ascending: true }),
+        supabase.from("sleep_log").select("hours, quality, date").eq("user_id", userId).gte("date", daysAgoISO(window, 'local')).lt("date", daysAgoISO(7, 'local')).order("date", { ascending: true }),
         supabase.from("exercise_log").select("type, duration, logged_at").eq("user_id", userId).gte("logged_at", windowStart).lt("logged_at", sevenDaysAgo),
         supabase.from("hygiene_scans").select("product_name, brand, safety_score, concerns, scanned_at").eq("user_id", userId).gte("scanned_at", sevenDaysAgo).order("scanned_at", { ascending: false }).limit(10),
     ]);
@@ -232,7 +226,6 @@ export async function buildFullContext(userId, options = {}) {
 
     const dailyNutrition = [...olderNutrition, ...recentNutrition];
     const sleepData = [...olderSleep, ...recentSleep];
-    const exerciseData = [...olderExercise, ...recentExercise];
 
     const olderNutritionSummary = olderNutrition.length > 0 ? {
         avgCalories: Math.round(olderNutrition.reduce((s, d) => s + (d.calories || 0), 0) / olderNutrition.length),

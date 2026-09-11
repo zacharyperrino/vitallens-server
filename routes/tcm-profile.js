@@ -16,11 +16,6 @@ function deriveConstitution(profile) {
         cold: profile.cold_count + profile.cool_count * 0.5,
         neutral: profile.neutral_count,
     };
-    const moisture = {
-        damp: profile.damp_count,
-        dry: profile.dry_count,
-        balanced: profile.moist_count + profile.neutral_count * 0.5,
-    };
     const total = profile.total_foods_analyzed || 1;
 
     // Dominant thermal tendency

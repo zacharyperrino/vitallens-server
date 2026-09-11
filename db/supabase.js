@@ -3,8 +3,6 @@
 // so every route that uses this MUST derive the user from req.user (set by
 // requireAuth) — never from client-supplied ids.
 import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-dotenv.config();
 
 export const supabase = createClient(
     process.env.SUPABASE_URL,

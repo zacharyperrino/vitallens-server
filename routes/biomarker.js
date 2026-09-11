@@ -392,7 +392,7 @@ router.post('/biomarker-scan', biomarkerLimiter, upload.single('image'), async (
     let parsed;
     try {
       parsed = JSON.parse(cleaned);
-    } catch (parseErr) {
+    } catch {
       console.error('[Biomarker] JSON parse failed:', raw.slice(0, 200));
       return res.status(422).json({ error: 'Failed to parse analysis response. Try again.' });
     }

@@ -10,15 +10,9 @@ import { requireSelf } from '../middleware/auth.js';
 import { supabase } from '../db/supabase.js';
 
 import { sendError } from '../utils/errors.js';
+import { daysAgo, isoDate, todayISO } from '../utils/dates.js';
 
 const router = Router();
-
-// Local-midnight ISO string, matching the convention used elsewhere.
-function startOfToday() {
-    return new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
-        .toISOString()
-        .split('T')[0];
-}
 
 // POST /api/water/log
 router.post('/water/log', requireSelf('userId'), async (req, res) => {
@@ -51,7 +45,7 @@ router.post('/water/log', requireSelf('userId'), async (req, res) => {
 router.get('/water/today', requireSelf('userId'), async (req, res) => {
     try {
         const { userId } = req.query;
-        const today = startOfToday();
+        const today = todayISO('local');
 
         const { data, error } = await supabase
             .from('water_log')
@@ -75,7 +69,7 @@ router.get('/water/history', requireSelf('userId'), async (req, res) => {
     try {
         const { userId } = req.query;
         const days = Math.min(Math.max(parseInt(req.query.days, 10) || 7, 1), 365);
-        const since = new Date(Date.now() - (days - 1) * 86400000);
+        const since = daysAgo(days - 1);
         since.setHours(0, 0, 0, 0);
         const sinceIso = since.toISOString();
 
@@ -91,7 +85,7 @@ router.get('/water/history', requireSelf('userId'), async (req, res) => {
         // Aggregate into per-day totals keyed by YYYY-MM-DD.
         const totals = {};
         for (const entry of data || []) {
-            const day = new Date(entry.logged_at).toISOString().split('T')[0];
+            const day = isoDate(entry.logged_at);
             totals[day] = (totals[day] || 0) + (entry.amount_ml || 0);
         }
         const history = Object.entries(totals)

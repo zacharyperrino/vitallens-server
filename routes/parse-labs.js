@@ -81,7 +81,7 @@ router.post('/parse-labs', labLimiter, upload.single('pdf'), async (req, res, ne
                         timeout: 10000,
                         maxBuffer: 20 * 1024 * 1024,
                     }).toString();
-                } catch (pdfErr) {
+                } catch {
                     // pdftotext not available — send PDF as image to GPT-4o Vision
                     console.log('[LabParser] pdftotext unavailable, using vision API');
                     return await parsePdfWithVision(file.buffer, file.mimetype, apiKey, res, userId);

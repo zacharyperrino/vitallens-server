@@ -12,6 +12,7 @@ import { Router } from 'express';
 import { supabase } from '../db/supabase.js';
 
 import { sendError } from '../utils/errors.js';
+import { daysAgo } from '../utils/dates.js';
 
 const router = Router();
 
@@ -164,7 +165,7 @@ router.get('/practitioner/client-data', async (req, res) => {
         }
 
         // ── Only now do we read the client's data ───────────────
-        const since = new Date(Date.now() - 30 * 86400000).toISOString();
+        const since = daysAgo(30).toISOString();
         const sinceDate = since.split('T')[0];
 
         const [meals, sleep, exercise, nutrition, insights] = await Promise.all([

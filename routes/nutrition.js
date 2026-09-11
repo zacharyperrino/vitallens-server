@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
+import { sendError } from '../utils/errors.js';
 const router = Router();
 
 const nutritionLimiter = rateLimit({ windowMs: 60 * 1000, max: 200 });
@@ -80,7 +81,7 @@ router.get('/nutrition/food/:fdcId', nutritionLimiter, async (req, res) => {
         const food = await response.json();
         res.json(normalizeNutrition(food, food.description, parseFloat(grams)));
     } catch (err) {
-        res.status(502).json({ error: err.message });
+        sendError(res, err, 502);
     }
 });
 

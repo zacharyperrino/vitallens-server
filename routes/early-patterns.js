@@ -12,16 +12,13 @@ import { checkAndIncrementUsage } from '../services/usage-gates.js';
 import { supabase } from '../db/supabase.js';
 
 import { sendError } from '../utils/errors.js';
+import { daysAgo, isoDate } from '../utils/dates.js';
 
 const router = Router();
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-haiku-4-5-20251001';
 
 const EARLY_PATTERN_SYSTEM = `You are a gentle wellness journaling assistant for VitalLens. You surface a single, tentative early observation from very limited data. You are NOT diagnosing and NOT claiming a validated pattern. Use warm, non-clinical wellness language. Never name medical conditions. Never make medical claims.`;
-
-function dayKey(ts) {
-    return new Date(ts).toISOString().split('T')[0];
-}
 
 router.get('/early-patterns', requireSelf('userId'), async (req, res) => {
     try {
@@ -30,7 +27,7 @@ router.get('/early-patterns', requireSelf('userId'), async (req, res) => {
         const gate = await checkAndIncrementUsage(userId, 'early_patterns');
         if (!gate.allowed) return res.status(429).json({ error: gate.message, upgradeRequired: true });
 
-        const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
+        const sevenDaysAgo = daysAgo(7);
         sevenDaysAgo.setHours(0, 0, 0, 0);
         const sinceIso = sevenDaysAgo.toISOString();
         const sinceDate = sinceIso.split('T')[0];
@@ -49,9 +46,9 @@ router.get('/early-patterns', requireSelf('userId'), async (req, res) => {
 
         // Count distinct days that have ANY data across the four sources.
         const days = new Set();
-        meals.forEach(m => days.add(dayKey(m.logged_at)));
+        meals.forEach(m => days.add(isoDate(m.logged_at)));
         sleep.forEach(s => s.date && days.add(s.date));
-        exercise.forEach(e => days.add(dayKey(e.logged_at)));
+        exercise.forEach(e => days.add(isoDate(e.logged_at)));
         nutrition.forEach(n => n.date && days.add(n.date));
         const dataPoints = days.size;
 
@@ -61,10 +58,10 @@ router.get('/early-patterns', requireSelf('userId'), async (req, res) => {
 
         const summary = [
             `Distinct days with data: ${dataPoints}`,
-            `Meals: ` + (meals.map(m => `${dayKey(m.logged_at)} ${m.name}${m.calories ? ` (${Math.round(m.calories)}cal)` : ''}`).join('; ') || 'none'),
+            `Meals: ` + (meals.map(m => `${isoDate(m.logged_at)} ${m.name}${m.calories ? ` (${Math.round(m.calories)}cal)` : ''}`).join('; ') || 'none'),
             `Daily nutrition totals: ` + (nutrition.map(n => `${n.date}: ${Math.round(n.calories || 0)}cal`).join('; ') || 'none'),
             `Sleep: ` + (sleep.map(s => `${s.date}: ${s.hours}h ${s.quality || ''}`.trim()).join('; ') || 'none'),
-            `Exercise: ` + (exercise.map(e => `${dayKey(e.logged_at)}: ${e.type} ${e.duration || '?'}min`).join('; ') || 'none'),
+            `Exercise: ` + (exercise.map(e => `${isoDate(e.logged_at)}: ${e.type} ${e.duration || '?'}min`).join('; ') || 'none'),
         ].join('\n');
 
         const prompt = `Here is a new user's wellness log covering ${dataPoints} days:

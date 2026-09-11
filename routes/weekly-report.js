@@ -14,6 +14,7 @@ import { WELLNESS_SYSTEM_PROMPT } from '../services/prompts.js';
 import { supabase } from '../db/supabase.js';
 
 import { sendError } from '../utils/errors.js';
+import { MS_PER_DAY, todayISO } from '../utils/dates.js';
 
 const router = Router();
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
@@ -104,7 +105,7 @@ catch (e) { return res.status(422).json({ error: e.message }); }
                 focus: report.focus,
                 data_completeness: report.data_completeness,
                 report_data: report,
-                week_of: new Date().toISOString().split("T")[0],
+                week_of: todayISO(),
             })
             .select()
             .single();
@@ -173,7 +174,7 @@ if (!userId) return res.status(400).json({ error: "userId required." });
 
         if (cached?.narrative && cached?.narrative_generated_at) {
             const age = Date.now() - new Date(cached.narrative_generated_at).getTime();
-            if (age < 7 * 24 * 60 * 60 * 1000) {
+            if (age < 7 * MS_PER_DAY) {
                 return res.json({ narrative: cached.narrative, cached: true });
             }
         }

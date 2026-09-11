@@ -104,8 +104,6 @@ router.get('/environment/latest', async (req, res) => {
         const { userId } = req.query;
         if (!userId) return res.status(400).json({ error: 'userId required' });
 
-        const { createClient } = await import('@supabase/supabase-js');
-        
         const { data, error } = await supabase
             .from('environment_logs')
             .select('*')
@@ -153,8 +151,7 @@ router.get('/environment', async (req, res) => {
         // Persist to environment_logs if userId provided
         if (userId) {
             try {
-                const { createClient } = await import('@supabase/supabase-js');
-                                await supabase.from('environment_logs').insert({
+                await supabase.from('environment_logs').insert({
                     user_id: userId,
                     location: geo.displayName,
                     aqi: airData.aqi || null,

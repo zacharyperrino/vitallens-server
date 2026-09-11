@@ -3,14 +3,10 @@
 // POST /api/meal-memory                 — upsert meal memory
 
 import { Router } from 'express';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../db/supabase.js';
 import { sendError } from '../utils/errors.js';
 
 const router = Router();
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY  // bypasses RLS
-);
 
 // ── GET /api/meal-memory ──────────────────────────────────────
 router.get('/meal-memory', async (req, res) => {

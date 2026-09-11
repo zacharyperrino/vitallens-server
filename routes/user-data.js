@@ -13,6 +13,7 @@ import { requireAuth, requireSelf } from '../middleware/auth.js';
 import { supabase as adminSupabase } from '../db/supabase.js';
 
 import { sendError } from '../utils/errors.js';
+import { todayISO } from '../utils/dates.js';
 
 const router = Router();
 
@@ -70,7 +71,7 @@ router.get(
       if (!profileRes.error) exportData.data.profiles = profileRes.data;
 
       res.setHeader('Content-Disposition',
-        `attachment; filename="vitallens-export-${new Date().toISOString().split('T')[0]}.json"`
+        `attachment; filename="vitallens-export-${todayISO()}.json"`
       );
       res.setHeader('Content-Type', 'application/json');
       res.json(exportData);
@@ -116,7 +117,7 @@ router.delete(
           deletionLog.tables[table] = error
             ? { status: 'error', error: error.message }
             : { status: 'deleted' };
-        } catch (err) {
+        } catch {
           deletionLog.tables[table] = { status: 'skipped' };
         }
       }

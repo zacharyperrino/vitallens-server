@@ -42,14 +42,3 @@ export function sanitizeContextFields({ goals_text, dietary_restrictions, health
     supplement_names: (supplement_names || []).map(n => sanitizeUserInput(n, 'supplement')),
   };
 }
-/**
- * Generate an Examine.com evidence link for a supplement name.
- * Used to surface research quality without requiring the paid API.
- */
-export function examineLink(supplementName) {
-    const slug = supplementName.toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '')
-        .trim()
-        .replace(/\s+/g, '-');
-    return `https://examine.com/supplements/${slug}/`;
-}

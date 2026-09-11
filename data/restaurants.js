@@ -480,7 +480,3 @@ export function matchMenuItem(restaurantKey, foodLabel, displayName = '') {
 
     return null;
 }
-
-export function getRestaurantItems(restaurantKey) {
-    return RESTAURANT_DB[restaurantKey] || null;
-}

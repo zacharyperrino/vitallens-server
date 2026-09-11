@@ -11,11 +11,11 @@ import { ingest } from '../services/eventIngestion.js';
 import { supabase } from '../db/supabase.js';
 
 import { sendError } from '../utils/errors.js';
+import { MS_PER_DAY, isoDate, todayISO } from '../utils/dates.js';
 
 const router = Router();
 
 const EVENT_TYPES = ['period_start', 'period_end', 'symptom'];
-const MS_PER_DAY = 86400000;
 
 // POST /api/cycle/log
 router.post('/cycle/log', requireSelf('userId'), async (req, res) => {
@@ -24,7 +24,7 @@ router.post('/cycle/log', requireSelf('userId'), async (req, res) => {
         if (!EVENT_TYPES.includes(event_type)) {
             return res.status(400).json({ error: `event_type must be one of: ${EVENT_TYPES.join(', ')}.` });
         }
-        const eventDate = date || new Date().toISOString().split('T')[0];
+        const eventDate = date || todayISO();
 
         const { data, error } = await supabase
             .from('cycle_log')
@@ -79,8 +79,7 @@ router.get('/cycle/current', requireSelf('userId'), async (req, res) => {
             ? Math.round(lengths.reduce((a, b) => a + b, 0) / lengths.length)
             : 28; // sensible default before two periods are logged
 
-        const predictedNextPeriod = new Date(new Date(lastStart).getTime() + averageCycleLength * MS_PER_DAY)
-            .toISOString().split('T')[0];
+        const predictedNextPeriod = isoDate(new Date(lastStart).getTime() + averageCycleLength * MS_PER_DAY);
 
         res.json({
             cycleDay,

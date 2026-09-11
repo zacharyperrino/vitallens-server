@@ -8,6 +8,7 @@ import { Router } from 'express';
 import { supabase } from '../db/supabase.js';
 
 import { sendError } from '../utils/errors.js';
+import { daysAgoISO, todayISO } from '../utils/dates.js';
 
 const router = Router();
 
@@ -183,8 +184,8 @@ router.get('/supplements', async (req, res) => {
         const [supplementsRes, profileRes, dailyNutritionRes, todayNutritionRes, labResultsRes] = await Promise.allSettled([
             supabase.from('supplement_logs').select('*').eq('user_id', userId).eq('active', true).order('started_at', { ascending: false }),
             supabase.from('health_profile').select('*').eq('user_id', userId).single(),
-            supabase.from('daily_nutrition').select('*').eq('user_id', userId).gte('date', new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]).order('date', { ascending: true }),
-            supabase.from('daily_nutrition').select('*').eq('user_id', userId).eq('date', new Date().toISOString().split('T')[0]).single(),
+            supabase.from('daily_nutrition').select('*').eq('user_id', userId).gte('date', daysAgoISO(7)).order('date', { ascending: true }),
+            supabase.from('daily_nutrition').select('*').eq('user_id', userId).eq('date', todayISO()).single(),
             supabase.from('lab_results').select('panel_type, markers, collected_at').eq('user_id', userId).order('collected_at', { ascending: false }).limit(5),
         ]);
 

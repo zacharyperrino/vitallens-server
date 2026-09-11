@@ -113,7 +113,7 @@ app.get('/api/ready', async (req, res) => {
     const { error } = await supabase.from('profiles').select('id', { head: true, count: 'exact' }).limit(1);
     if (error) throw error;
     res.json({ ready: true });
-  } catch (err) {
+  } catch {
     res.status(503).json({ ready: false, error: 'database unreachable' });
   }
 });
