@@ -69,7 +69,7 @@ console.log(`[WeeklyReport] Generating for ${userId.slice(0, 8)}`);
                 system: WELLNESS_SYSTEM_PROMPT,
                 messages: [{ role: "user", content: `${REPORT_PROMPT}\n\nUSER DATA (last 7 days):\n${contextText}` }],
             }),
-            signal: AbortSignal.timeout(30000),
+            timeoutMs: 30000,
         }, { routeName: 'WeeklyReport' });
 
         if (!claudeRes.ok) throw new Error(`Claude API error: ${claudeRes.status}`);
@@ -228,7 +228,7 @@ Respond ONLY with valid JSON, no markdown:
                 system: WELLNESS_SYSTEM_PROMPT,
                 messages: [{ role: "user", content: NARRATIVE_PROMPT }],
             }),
-            signal: AbortSignal.timeout(30000),
+            timeoutMs: 30000,
         }, { routeName: 'WeeklyReportNarrative' });
 
         if (!claudeRes.ok) throw new Error(`Claude API error: ${claudeRes.status}`);

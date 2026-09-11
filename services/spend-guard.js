@@ -18,7 +18,7 @@ import { supabase } from '../db/supabase.js';
 // An explicit 0 is an emergency kill switch — `Number(x) || default` would
 // silently coerce it back to the default. Only unset / non-numeric falls back.
 function envNumber(name, fallback) {
-    const raw = process.env[name];
+    const raw = process.env[name]?.trim();
     if (raw === undefined || raw === '') return fallback;
     const n = Number(raw);
     return Number.isFinite(n) ? n : fallback;

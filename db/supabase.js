@@ -7,7 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 // Bound every PostgREST call so a hung connection can't hang a request forever.
 // A signal supabase-js attaches itself (e.g. `.abortSignal()`) still wins.
 const REQUEST_TIMEOUT_MS = 15_000;
-const fetchWithTimeout = (url, opts = {}) => fetch(url, {
+export const fetchWithTimeout = (url, opts = {}) => fetch(url, {
     ...opts,
     signal: opts.signal
         ? AbortSignal.any([opts.signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)])

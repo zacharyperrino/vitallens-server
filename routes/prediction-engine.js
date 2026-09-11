@@ -100,7 +100,7 @@ console.log(`[PredictionEngine] Running for ${userId.slice(0, 8)}`);
                 system: WELLNESS_SYSTEM_PROMPT,
                 messages: [{ role: "user", content: `${PREDICTION_PROMPT}\n\nUSER DATA:\n${contextText}` }],
             }),
-            signal: AbortSignal.timeout(35000),
+            timeoutMs: 35000,
         }, { routeName: 'PredictionEngine' });
 
         if (!claudeRes.ok) throw new Error(`Claude API error: ${claudeRes.status}`);

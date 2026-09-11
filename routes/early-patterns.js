@@ -86,7 +86,7 @@ Requirements:
                 system: EARLY_PATTERN_SYSTEM,
                 messages: [{ role: 'user', content: prompt }],
             }),
-            signal: AbortSignal.timeout(20000),
+            timeoutMs: 20000,
         }, { routeName: 'EarlyPatterns' });
 
         if (!response.ok) throw new Error(`Claude API error: ${response.status}`);

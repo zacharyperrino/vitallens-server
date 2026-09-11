@@ -87,7 +87,7 @@ console.log(`[CorrelationEngine] Running analysis for ${userId.slice(0, 8)}`);
         system: WELLNESS_SYSTEM_PROMPT,
         messages: [{ role: "user", content: `${CORRELATION_PROMPT}\n\nUSER DATA:\n${contextText}` }],
     }),
-    signal: AbortSignal.timeout(30000),
+    timeoutMs: 30000,
 }, { routeName: 'CorrelationEngine' });
 
         if (!claudeRes.ok) throw new Error(`Claude API error: ${claudeRes.status}`);
@@ -143,7 +143,7 @@ try {
                 content: `Review this wellness app output for any clinical diagnostic language, condition names, or medical advice. Reply with only "PASS" if it is safe, or "FLAG: [reason]" if it contains clinical language.\n\nOutput to review:\n${JSON.stringify(analysis.correlations?.slice(0, 3))}\n\nSummary: ${analysis.summary}`
             }]
         }),
-        signal: AbortSignal.timeout(10000),
+        timeoutMs: 10000,
     }, { routeName: 'CorrelationSafetyCheck' });
 
     if (safetyCheck.ok) {

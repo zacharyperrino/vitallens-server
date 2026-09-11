@@ -94,7 +94,7 @@ describe('requireAuth', () => {
     expect(req.user).toEqual({ id: 'user-1', email: 'a@b.c', role: 'authenticated' });
     // RLS-scoped client carries the caller's own token, never the service role.
     expect(createClient).toHaveBeenCalledWith(SUPABASE_URL, 'anon-test-key', {
-      global: { headers: { Authorization: 'Bearer good-token' } },
+      global: { headers: { Authorization: 'Bearer good-token' }, fetch: expect.any(Function) },
     });
     expect(req.supabase).toBeDefined();
   });

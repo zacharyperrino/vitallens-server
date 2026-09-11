@@ -44,6 +44,7 @@ import practitionerRoutes from './routes/practitioner.js';
 import medicationsRoutes from './routes/medications.js';
 import genomicsRoutes from './routes/genomics.js';
 import consentsRoutes from './routes/consents.js';
+import { startPushReminders } from './services/push-reminders.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -204,6 +205,9 @@ if (process.env.NODE_ENV !== 'test') {
   const server = app.listen(PORT, () => {
     console.log(`🔬 VitalLens API running on http://localhost:${PORT}`);
   });
+
+  // Evening web-push reminders (no-op without VAPID keys; unref'd interval).
+  startPushReminders();
 
   // Graceful shutdown: stop accepting, let in-flight AI calls finish. AI
   // fetches retry for up to 45s and copilot tool loops run longer, so allow

@@ -96,7 +96,9 @@ async function pullSeries(variable, userId, sinceIso) {
     const buckets = {};
     for (const row of data || []) {
         const day = isoDate(row[map.dateCol]);
-        const val = map.transform ? map.transform(row[map.value]) : Number(row[map.value]);
+        const raw = row[map.value];
+        if (raw === null || raw === undefined || raw === '') continue; // unlogged day, not a 0
+        const val = map.transform ? map.transform(raw) : Number(raw);
         if (Number.isNaN(val)) continue;
         (buckets[day] ||= []).push(val);
     }
@@ -134,10 +136,6 @@ router.post('/custom-correlation', requireSelf('userId'), async (req, res) => {
             });
         }
 
-        // Usage gate only after request validation so a 400 never burns quota.
-        const gate = await checkAndIncrementUsage(userId, 'custom_correlation');
-        if (!gate.allowed) return res.status(429).json({ error: gate.message, upgradeRequired: true });
-
         // Align by shared dates.
         const sharedDays = Object.keys(seriesA).filter(d => d in seriesB).sort();
         const aligned = sharedDays.map(d => ({ date: d, a: round(seriesA[d]), b: round(seriesB[d]) }));
@@ -167,6 +165,11 @@ Describe any relationship you notice between these two variables in plain, suppo
 - If there is not enough data or no clear relationship, say so explicitly — do not invent a pattern.
 - No medical claims, no diagnosis, no conditions.
 - Respond with 2-4 sentences of plain text only.`;
+
+        // Usage gate only after validation AND the dataPoints check, so neither a
+        // 400 nor a "not enough data" response (no AI call) burns quota.
+        const gate = await checkAndIncrementUsage(userId, 'custom_correlation');
+        if (!gate.allowed) return res.status(429).json({ error: gate.message, upgradeRequired: true });
 
         const response = await fetchWithRetry(ANTHROPIC_API_URL, {
             method: 'POST',

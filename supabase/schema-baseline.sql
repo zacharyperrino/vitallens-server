@@ -391,7 +391,8 @@ create table if not exists public.profiles (
   push_enabled boolean default false,
   date_of_birth date,
   onboarding_completed boolean not null default false,
-  timezone text
+  timezone text,
+  last_push_at timestamp with time zone
 );
 
 create table if not exists public.scan_history (

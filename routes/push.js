@@ -11,11 +11,16 @@ import { sendError } from '../utils/errors.js';
 
 const router = Router();
 
-webpush.setVapidDetails(
-    process.env.VAPID_EMAIL,
-    process.env.VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY
-);
+// Web push is optional: without VAPID keys the routes answer 503 and the
+// app keeps its local (in-page) reminders. See services/push-reminders.js.
+const PUSH_CONFIGURED = !!(process.env.VAPID_EMAIL && process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
+if (PUSH_CONFIGURED) {
+    webpush.setVapidDetails(process.env.VAPID_EMAIL, process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY);
+}
+router.use('/push', (req, res, next) => {
+    if (!PUSH_CONFIGURED) return res.status(503).json({ error: 'Push notifications are not configured on this server.' });
+    next();
+});
 
 // ── POST /api/push/subscribe ──────────────────────────────────
 router.post('/push/subscribe', async (req, res) => {

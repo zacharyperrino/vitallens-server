@@ -80,9 +80,9 @@ describe('requireSelf blocks cross-user access', () => {
     expect(res.status).toBe(403);
   });
 
-  it('water/today: 403 when User B requests User A', async () => {
+  it('usage/status: 403 when User B requests User A', async () => {
     const res = await request(app)
-      .get(`/api/water/today?userId=${A.id}`)
+      .get(`/api/usage/status?userId=${A.id}`)
       .set('Authorization', `Bearer ${B.token}`);
     expect(res.status).toBe(403);
   });

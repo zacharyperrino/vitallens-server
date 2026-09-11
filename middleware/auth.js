@@ -7,6 +7,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { createClient } from '@supabase/supabase-js';
+import { fetchWithTimeout } from '../db/supabase.js';
 import { createRemoteJWKSet, jwtVerify, errors as joseErrors } from 'jose';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -25,7 +26,7 @@ async function verifyLocally(token) {
 }
 
 async function verifyRemotely(token) {
-  const client = createClient(SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+  const client = createClient(SUPABASE_URL, process.env.SUPABASE_ANON_KEY, { global: { fetch: fetchWithTimeout } });
   const { data, error } = await client.auth.getUser(token);
   if (error || !data?.user) return null;
   return { id: data.user.id, email: data.user.email || null, role: data.user.role || 'authenticated' };
@@ -60,7 +61,7 @@ export async function requireAuth(req, res, next) {
   req.user = user;
   // RLS-scoped client for routes that read on the user's behalf.
   req.supabase = createClient(SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
+    global: { headers: { Authorization: `Bearer ${token}` }, fetch: fetchWithTimeout },
   });
   next();
 }

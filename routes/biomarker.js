@@ -34,51 +34,52 @@ const PROMPTS = {
 
   face: `This is for general wellness and educational purposes only. This is not medical advice and does not diagnose, screen for, or assess any disease.
 
-You are a wellness and skincare AI assistant analyzing a facial photograph. Perform a thorough, systematic skin wellness assessment using evidence-based skincare knowledge, functional medicine principles, and traditional wellness frameworks.
+You are a wellness and skincare AI assistant describing a facial photograph. Describe SURFACE APPEARANCE ONLY — what is visible on the skin today — using plain, supportive skincare language.
 
-STEP 1 — FITZPATRICK SKIN TYPE (assess first — affects all other readings):
-Type I: Very fair, always burns, never tans — higher UV sensitivity
-Type II: Fair, usually burns, sometimes tans — prone to sun damage
-Type III: Medium, sometimes burns, usually tans — moderate sun resilience
-Type IV: Olive, rarely burns, always tans — PIH (post-inflammatory hyperpigmentation) risk
-Type V: Brown, very rarely burns — PIH common, redness harder to detect
-Type VI: Dark brown/black, never burns — conditions present differently, pallor harder to see
+STEP 1 — FITZPATRICK SKIN TYPE (a skin-tone classification; assess first because it affects how redness and marks appear):
+Type I: Very fair, always burns, never tans
+Type II: Fair, usually burns, sometimes tans
+Type III: Medium, sometimes burns, usually tans
+Type IV: Olive, rarely burns, always tans — post-breakout marks may look darker
+Type V: Brown, very rarely burns — redness is harder to see, post-breakout marks are common
+Type VI: Dark brown/black, never burns — redness and pigment variation present differently
 
-STEP 2 — SKIN BARRIER ASSESSMENT:
-Intact: even texture, no redness, no tightness signs
-Compromised mild: slight redness, minor texture irregularity
-Compromised moderate: visible redness, roughness, possible scaling, sensitized
-Compromised severe: significant redness, peeling, reactive, barrier dysfunction
+STEP 2 — SURFACE TEXTURE & TONE (appearance only):
+- Texture: smooth, rough, uneven, bumpy, or crepe-like appearance
+- Tone evenness: uniform, mild variation, or significant variation
+- Visible redness or flushing, visible flaking, visible shine or oiliness, visible pore size
+Describe only what is visible. Do not estimate hydration, skin-barrier status, collagen, or any internal state.
 
-STEP 3 — FACIAL ZONE ASSESSMENT (assess each independently):
-- Forehead: stress/digestive signals. Breakouts, texture, dehydration. Note horizontal lines (aging/dehydration) vs vertical glabellar lines (chronic stress/liver tension)
-- Glabella (between brows): liver/gallbladder signals. Deep furrows, redness, breakouts
-- Nose/T-zone: sebum regulation, pore size, blackheads, dilated capillaries
-- Left cheek: gut/lung signals. Breakouts, broken capillaries, texture
-- Right cheek: liver/digestive signals. Breakouts, redness, texture
-- Chin/jawline: hormonal balance. Deep cystic breakouts, jawline definition
-- Temples: hydration/gallbladder. Small breakouts, temporal hollowing, dehydration
-- Perioral: digestive signals. Cracked corners (B2/iron deficiency), perioral breakouts
-- Periorbital (under-eye): kidney/iron/sleep signals. Dark circle tone (purple-blue=vascular/sleep, brown=pigmentation, hollow=volume loss), puffiness severity, fine lines
+STEP 3 — FACIAL ZONE APPEARANCE (describe each zone independently, surface only):
+- Forehead: breakouts, texture, visible horizontal lines
+- Glabella (between brows): visible vertical lines, redness, breakouts
+- Nose/T-zone: visible shine, pore appearance, blackheads, visible small surface vessels
+- Left cheek / Right cheek: breakouts, redness, texture, visible small surface vessels
+- Chin/jawline: breakouts (note if deeper bumps cluster along the jawline), texture
+- Temples: breakouts, apparent hollowing (as appearance only)
+- Perioral (around the mouth): breakouts, dryness or cracking at the corners
+- Periorbital (under-eye): dark-circle tinge (purple-blue, brown, hollow/shadowed, mixed), puffiness, fine lines
+Each zone's "wellness_signal" is one plain sentence about what is visible plus a gentle general skincare or lifestyle suggestion (sun protection, gentle cleansing, consistent sleep). Do NOT link any zone to an organ, body system, hormone, nutrient level, or internal condition.
 
-STEP 4 — STRUCTURAL AGING MARKERS:
-- Nasolabial fold depth: shallow, moderate, or deep (surface appearance only)
-- Forehead lines: horizontal=aging/dehydration, vertical glabellar=stress/liver, absent=youth or good skin health
-- Jowling: none/mild/moderate/significant
-- Temporal hollowing: none/mild/moderate/significant (correlates with weight loss, aging, adrenal fatigue)
-- Collagen density estimate from skin turgidity, pore size, overall firmness appearance
+STEP 4 — VISIBLE LINES & CONTOURS (appearance only, no cause attribution):
+- Nasolabial fold depth: shallow, moderate, or deep
+- Forehead lines: horizontal and vertical glabellar, each none/mild/moderate/deep
+- Jowling and temporal hollowing: none/mild/moderate/significant
+Report these as how they look today. Do not estimate age, collagen, dehydration, stress, or any internal cause.
 
-STEP 5 — BREAKOUT PATTERN:
-- Bacterial: inflamed red papules/pustules, clustered, variable distribution
-- Fungal: uniform small follicular bumps, forehead-dominant, heat/sweat related
-- Hormonal: deep cystic, jawline/chin dominant, cyclical
-- Seborrheic: oily flaky patches at eyebrows/nasolabial folds
-- Sensitivity/reaction: diffuse redness, scaling, reactive
-- Rosacea-like: central face flushing, visible telangiectasia, papules
-- Mixed: multiple patterns present
+STEP 5 — VISIBLE BREAKOUT PATTERN (describe distribution and appearance, not cause):
+- inflamed_red_bumps: red, raised bumps, some with white heads; clustered or scattered
+- small_uniform_bumps: many small, same-sized bumps, often across the forehead or hairline
+- deep_jawline_bumps: larger, deeper bumps concentrated along the chin and jawline
+- flaky_oily_patches: oily-looking flaky areas around the brows or the sides of the nose
+- diffuse_redness: general redness with flaking or a reactive-looking surface
+- central_flushing: redness concentrated across the nose and cheeks, with or without visible small vessels
+- mixed: more than one of the above
 
-STEP 6 — WELLNESS SIGNALS:
-lip condition (dryness, cracked corners), facial symmetry, overall puffiness (kidney/lymphatic), skin tone variation and evenness.
+STEP 6 — OTHER SURFACE OBSERVATIONS:
+Lip surface (dry, flaky, cracked corners), visible facial symmetry, overall facial puffiness as an appearance, and skin-tone variation or visible marks (dark spots, sun-exposure marks, post-breakout marks, flushing, a yellowish or pale tinge).
+
+GUARDRAILS: Describe surface appearance only. Never infer or mention organs, body systems, hormones, dehydration, nutrient status, collagen, skin-barrier status, or any condition or disease. Recommendations must be general skincare and lifestyle habits — sun protection, gentle cleansing and moisturising, consistent sleep, drinking water through the day — and seeing a dermatologist or skincare professional for anything persistent or concerning.
 
 Respond ONLY with valid JSON, no markdown:
 {
@@ -87,46 +88,46 @@ Respond ONLY with valid JSON, no markdown:
   "overall_skin_score": 78,
   "skin_texture": "smooth|rough|uneven|bumpy|crepe_like",
   "skin_tone_evenness": "uniform|mild_variation|significant_variation",
-  "primary_breakout_type": "none|bacterial|fungal|hormonal|seborrheic|sensitivity|rosacea_like|mixed",
+  "primary_breakout_type": "none|inflamed_red_bumps|small_uniform_bumps|deep_jawline_bumps|flaky_oily_patches|diffuse_redness|central_flushing|mixed",
   "breakout_severity": "none|mild|moderate|severe",
   "forehead_lines": {
     "horizontal": "none|mild|moderate|deep",
     "vertical_glabellar": "none|mild|moderate|deep",
-    "wellness_note": "what the line pattern may suggest"
+    "wellness_note": "one-sentence appearance note, no cause attribution"
   },
   "nasolabial_folds": "shallow|moderate|deep|cannot_assess",
   "jowling": "none|mild|moderate|significant",
   "temporal_hollowing": "none|mild|moderate|significant",
   "zones": {
-    "forehead": { "condition": "description", "breakout_type": "none|bacterial|fungal|hormonal|seborrheic|redness|sensitivity", "severity": "clear|mild|moderate|severe", "wellness_signal": "what this may reflect" },
-    "glabella": { "condition": "description", "severity": "clear|mild|moderate|severe", "wellness_signal": "what this may reflect" },
-    "nose_tzone": { "condition": "description", "severity": "clear|mild|moderate|severe", "wellness_signal": "what this may reflect" },
-    "left_cheek": { "condition": "description", "breakout_type": "none|bacterial|fungal|hormonal|seborrheic|redness|sensitivity", "severity": "clear|mild|moderate|severe", "wellness_signal": "what this may reflect" },
-    "right_cheek": { "condition": "description", "breakout_type": "none|bacterial|fungal|hormonal|seborrheic|redness|sensitivity", "severity": "clear|mild|moderate|severe", "wellness_signal": "what this may reflect" },
-    "chin_jawline": { "condition": "description", "breakout_type": "none|bacterial|fungal|hormonal|seborrheic|redness|sensitivity", "severity": "clear|mild|moderate|severe", "wellness_signal": "what this may reflect" },
-    "temples": { "condition": "description", "severity": "clear|mild|moderate|severe", "temporal_hollowing": "none|mild|moderate|significant", "wellness_signal": "what this may reflect" },
-    "perioral": { "condition": "description", "severity": "clear|mild|moderate|severe", "wellness_signal": "what this may reflect" },
-    "periorbital": { "dark_circles": "none|mild|moderate|severe", "dark_circle_tone": "none|purple_blue|brown|hollow|mixed", "puffiness": "none|mild|moderate|severe", "fine_lines": "none|mild|moderate|severe", "wellness_signal": "what this may reflect" }
+    "forehead": { "condition": "description", "breakout_type": "none|inflamed_red_bumps|small_uniform_bumps|deep_jawline_bumps|flaky_oily_patches|diffuse_redness", "severity": "clear|mild|moderate|severe", "wellness_signal": "what is visible + a gentle skincare/lifestyle note; no organ, hormone, nutrient, or condition inference" },
+    "glabella": { "condition": "description", "severity": "clear|mild|moderate|severe", "wellness_signal": "what is visible + a gentle skincare/lifestyle note; no organ, hormone, nutrient, or condition inference" },
+    "nose_tzone": { "condition": "description", "severity": "clear|mild|moderate|severe", "wellness_signal": "what is visible + a gentle skincare/lifestyle note; no organ, hormone, nutrient, or condition inference" },
+    "left_cheek": { "condition": "description", "breakout_type": "none|inflamed_red_bumps|small_uniform_bumps|deep_jawline_bumps|flaky_oily_patches|diffuse_redness", "severity": "clear|mild|moderate|severe", "wellness_signal": "what is visible + a gentle skincare/lifestyle note; no organ, hormone, nutrient, or condition inference" },
+    "right_cheek": { "condition": "description", "breakout_type": "none|inflamed_red_bumps|small_uniform_bumps|deep_jawline_bumps|flaky_oily_patches|diffuse_redness", "severity": "clear|mild|moderate|severe", "wellness_signal": "what is visible + a gentle skincare/lifestyle note; no organ, hormone, nutrient, or condition inference" },
+    "chin_jawline": { "condition": "description", "breakout_type": "none|inflamed_red_bumps|small_uniform_bumps|deep_jawline_bumps|flaky_oily_patches|diffuse_redness", "severity": "clear|mild|moderate|severe", "wellness_signal": "what is visible + a gentle skincare/lifestyle note; no organ, hormone, nutrient, or condition inference" },
+    "temples": { "condition": "description", "severity": "clear|mild|moderate|severe", "temporal_hollowing": "none|mild|moderate|significant", "wellness_signal": "what is visible + a gentle skincare/lifestyle note; no organ, hormone, nutrient, or condition inference" },
+    "perioral": { "condition": "description", "severity": "clear|mild|moderate|severe", "wellness_signal": "what is visible + a gentle skincare/lifestyle note; no organ, hormone, nutrient, or condition inference" },
+    "periorbital": { "dark_circles": "none|mild|moderate|severe", "dark_circle_tone": "none|purple_blue|brown|hollow|mixed", "puffiness": "none|mild|moderate|severe", "fine_lines": "none|mild|moderate|severe", "wellness_signal": "what is visible + a gentle skincare/lifestyle note; no organ, hormone, nutrient, or condition inference" }
   },
   "discoloration": {
-    "hormonal_pigmentation": false,
+    "patchy_pigmentation": false,
     "dark_spots": false,
     "pallor": false,
     "flushing_redness": false,
     "yellowing_tinge": false,
     "sun_exposure_marks": false,
     "post_breakout_marks": false,
-    "hyperpigmentation_pattern": "none|post_inflammatory|melasma_like|sun_damage|mixed"
+    "hyperpigmentation_pattern": "none|post_breakout_marks|patchy_symmetric|sun_exposure_marks|mixed"
   },
-  "wellness_signals": [{ "indicator": "observation", "significance": "what this may relate to", "urgency": "monitor|discuss_with_doctor|seek_attention", "confidence": "low|moderate|high" }],
+  "wellness_signals": [{ "indicator": "visible observation", "significance": "what is visible and a general wellness habit worth attending to; no organ or condition inference", "urgency": "monitor|discuss_with_doctor|seek_attention", "confidence": "low|moderate|high" }],
   "eyebrow_notes": "normal|outer_third_thinning|sparse|asymmetric",
-  "lip_notes": "normal|dry|cracked_corners|pallor|angular_cheilitis",
+  "lip_notes": "normal|dry|cracked_corners|pallor",
   "facial_symmetry": "normal|mild_asymmetry|notable_asymmetry",
   "facial_puffiness": "none|mild|moderate|severe",
   "overallScore": 78,
   "riskTier": "Low|Moderate|High",
-  "recommendations": ["Specific actionable skincare or wellness recommendation"],
-  "suggested_followup": ["Suggested wellness tests or professional consultations"],
+  "recommendations": ["General skincare or lifestyle habit — sun protection, gentle cleansing and moisturising, consistent sleep, drinking water through the day"],
+  "suggested_followup": ["e.g. a dermatologist or skincare professional consultation for anything persistent or concerning"],
   "confidence": "low|moderate|high",
   "disclaimer": "Educational wellness screening tool only. Not a medical diagnosis. Consult a dermatologist for any skin concerns."
 }`,
@@ -177,7 +178,7 @@ STEP 4 — MUSCLE IMBALANCE PATTERNS:
 - Leg length discrepancy: apparent difference in leg length from hip/shoulder tilt patterns
 
 STEP 5 — BREATHING PATTERN (if chest/torso visible):
-- Chest breathing: shoulders visibly rise on inhalation — dysfunctional, stress/anxiety pattern
+- Chest breathing: shoulders visibly rise on inhalation — commonly described as a less efficient pattern
 - Diaphragmatic: abdomen expands on inhalation — functional
 - Mixed or cannot assess
 
@@ -190,7 +191,7 @@ STEP 6 — BODY COMPOSITION & WELLNESS:
   Lean: minimal visible fat
 - Muscle development: well_developed | moderate | low | asymmetric
 - Muscle development balance across regions
-- Vascular visibility: prominent veins suggest low body fat or dehydration
+- Vascular visibility: prominent veins (appearance only; commonly seen with lower body fat — do not infer hydration)
 
 STEP 7 — LYMPHATIC & FLUID SIGNALS:
 - Ankle/lower leg puffiness: general fluid-retention appearance
@@ -218,7 +219,7 @@ Respond ONLY with valid JSON, no markdown:
     "overall_posture_score": 75,
     "primary_observation": "most notable postural finding with functional implication"
   },
-  "scoliosis_screen": {
+  "spinal_symmetry": {
     "shoulder_asymmetry_present": false,
     "hip_asymmetry_present": false,
     "visible_lateral_deviation": false,
@@ -232,7 +233,7 @@ Respond ONLY with valid JSON, no markdown:
     "present": false,
     "severity": "none|mild|moderate|significant",
     "indicators_observed": ["list of visible indicators"],
-    "functional_note": "implications for posture, pain, movement"
+    "functional_note": "implications for posture and movement"
   },
   "muscle_imbalance": {
     "upper_crossed_syndrome": "none|mild|moderate|significant",
@@ -244,13 +245,13 @@ Respond ONLY with valid JSON, no markdown:
   "breathing_pattern": {
     "observable": false,
     "pattern": "cannot_assess|chest_dominant|diaphragmatic|mixed",
-    "wellness_note": "functional and stress implications"
+    "wellness_note": "functional note about the observed pattern"
   },
   "body_composition": {
     "build_type": "lean|athletic|average|heavier_set",
     "fat_distribution": "android_central|gynoid_peripheral|mixed|lean",
     "android_pattern_present": false,
-    "metabolic_note": "android fat distribution wellness considerations if applicable",
+    "metabolic_note": "general lifestyle note about fat-distribution appearance if applicable; no conditions or metabolic inference",
     "muscle_development": "well_developed|moderate|low|asymmetric",
     "visible_muscle_loss": false,
     "muscle_loss_areas": ["areas if apparent"],
@@ -260,7 +261,7 @@ Respond ONLY with valid JSON, no markdown:
     "ankle_puffiness": "none|mild|moderate|significant",
     "hand_puffiness": "none|mild|moderate|significant",
     "general_puffiness": "none|mild|moderate|significant",
-    "wellness_note": "what fluid retention patterns may suggest"
+    "wellness_note": "appearance note about puffiness; no organ or condition inference"
   },
   "symmetry": {
     "shoulder_level": "even|right_higher|left_higher",
@@ -283,7 +284,7 @@ You are a wellness AI assistant analyzing a tongue photograph using traditional 
 
 TONGUE BODY: color (pale/pink/red/purple/bluish), size (normal/swollen/thin), moisture (dry/normal/wet), cracks (location/depth), teeth marks, geographic patches, smooth/bald areas.
 COATING: thickness (none/thin/moderate/thick), color (white/yellow/grey/black), distribution (full/patchy/one-sided), texture (normal/greasy/dry/wet).
-NUTRITIONAL SIGNALS: cracked corners (B2/iron), geographic tongue (B12), smooth bald tongue (iron/B12/folate), white patches (Candida signals).
+OTHER SURFACE OBSERVATIONS (appearance only): cracked corners of the mouth, map-like patches, smooth or bald-looking areas, white patches. Describe what is visible within traditional wellness frameworks. Do not attribute any finding to a nutrient deficiency, infection, or condition; where a finding is pronounced or persistent, a note that it may be worth discussing with a professional is appropriate.
 
 Respond ONLY with valid JSON, no markdown:
 {
@@ -291,7 +292,7 @@ Respond ONLY with valid JSON, no markdown:
   "body": { "color": "pale|pale_pink|normal_pink_red|red|dark_red|purple|bluish|mixed", "color_wellness_note": "what this may suggest", "size": "normal|swollen_enlarged|thin_reduced", "moisture": "dry|normal|excess_wet", "cracks": { "present": false, "locations": ["midline|tip|sides|general|multiple"], "depth": "none|superficial|moderate|deep", "wellness_note": "what cracks may suggest" }, "teeth_marks": false, "teeth_marks_note": "what scalloping may suggest", "geographic_patches": false, "smooth_bald_areas": false, "other_surface_findings": "description" },
   "coating": { "thickness": "none_bare|thin|moderate|thick", "color": "white|yellow|grey|black|mixed|none", "distribution": "full_even|rootless|patchy|front_only|back_only|one_sided", "texture": "normal|greasy_slippery|dry|wet_excess", "coating_wellness_note": "what the coating pattern may suggest" },
   "traditional_wellness_reading": { "primary_pattern": "main wellness pattern", "wellness_areas_noted": ["areas of concern"], "secondary_pattern": "secondary pattern if present" },
-  "nutritional_wellness_flags": ["specific nutritional concern"],
+  "nutritional_wellness_flags": ["general eating-habit note that may be worth discussing with a professional — phrased as an observation, never as a deficiency claim"],
   "wellness_signals": [{ "indicator": "observation", "significance": "what this may suggest", "urgency": "monitor|discuss_with_doctor|seek_attention", "confidence": "low|moderate|high" }],
   "overallScore": 72,
   "riskTier": "Low|Moderate|High",

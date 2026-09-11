@@ -1,7 +1,9 @@
 // ─── AI Fetch with Retry ──────────────────────────────────────
 // Exponential backoff with jitter, bounded by a TOTAL time budget so a
 // flaky provider can never hold a request for minutes. `options.timeoutMs`
-// (default 30s) bounds each individual attempt.
+// (default 30s) bounds each individual attempt. Pass `timeoutMs`, NOT
+// `signal: AbortSignal.timeout(N)` — a one-shot signal stays aborted across
+// every retry, so the first slow attempt would burn the whole budget.
 
 const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 
