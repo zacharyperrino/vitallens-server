@@ -25,4 +25,4 @@ jobs:
         run: |
           curl -fsS --max-time 30 -o /dev/null \
             "$SUPABASE_URL/rest/v1/profiles?select=id&limit=1" \
-            -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY"
+            -H "apikey: $SUPABASE_ANON_KEY"
