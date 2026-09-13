@@ -1,11 +1,11 @@
 // ─── Barcode Lookup Route ────────────────────────────────────
 // POST /api/barcode-lookup
 // Body: { barcode: string, userId?: string }
-// Checks PostgreSQL cache first, then falls back to Open Food Facts.
+// Checks the products cache (Supabase) first, then falls back to Open Food Facts.
 
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { query } from '../db/pool.js';
+import { supabase } from '../db/supabase.js';
 import { fetchProduct } from '../services/openFoodFacts.js';
 import { analyzeAdditives } from '../services/additiveAnalyzer.js';
 import { computeHealthScore } from '../services/healthScorer.js';
@@ -38,12 +38,17 @@ router.post('/barcode-lookup', barcodeLimiter, async (req, res, next) => {
         // ─── Check cache ─────────────────────────────────────
         let product = null;
         try {
-            const cached = await query(
-                'SELECT * FROM products WHERE barcode = $1 AND updated_at > NOW() - INTERVAL \'7 days\'',
-                [cleanBarcode]
-            );
-            if (cached.rows.length > 0) {
-                product = cached.rows[0];
+            const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+            const { data: cached, error: cacheErr } = await supabase
+                .from('products')
+                .select('*')
+                .eq('barcode', cleanBarcode)
+                .gt('updated_at', since)
+                .limit(1)
+                .maybeSingle();
+            if (cacheErr) throw cacheErr;
+            if (cached) {
+                product = cached;
                 console.log(`[Barcode] Cache hit: ${cleanBarcode}`);
             }
         } catch (dbErr) {
@@ -63,23 +68,16 @@ router.post('/barcode-lookup', barcodeLimiter, async (req, res, next) => {
                 });
             }
 
-            // Cache in PostgreSQL
+            // Cache in the products table
             try {
-                await query(
-                    `INSERT INTO products (barcode, name, brand, ingredients, nutrition, additives, nutriscore, nova_group, image_url, raw_response)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-           ON CONFLICT (barcode) DO UPDATE SET
-             name = EXCLUDED.name, brand = EXCLUDED.brand, ingredients = EXCLUDED.ingredients,
-             nutrition = EXCLUDED.nutrition, additives = EXCLUDED.additives, nutriscore = EXCLUDED.nutriscore,
-             nova_group = EXCLUDED.nova_group, image_url = EXCLUDED.image_url, raw_response = EXCLUDED.raw_response,
-             updated_at = NOW()`,
-                    [
-                        offProduct.barcode, offProduct.name, offProduct.brand, offProduct.ingredients,
-                        JSON.stringify(offProduct.nutrition), JSON.stringify(offProduct.additives),
-                        offProduct.nutriscore, offProduct.nova_group, offProduct.image_url,
-                        JSON.stringify(offProduct.raw_response),
-                    ]
-                );
+                const { error: upsertErr } = await supabase.from('products').upsert({
+                    barcode: offProduct.barcode, name: offProduct.name, brand: offProduct.brand,
+                    ingredients: offProduct.ingredients, nutrition: offProduct.nutrition,
+                    additives: offProduct.additives, nutriscore: offProduct.nutriscore,
+                    nova_group: offProduct.nova_group, image_url: offProduct.image_url,
+                    raw_response: offProduct.raw_response, updated_at: new Date().toISOString(),
+                }, { onConflict: 'barcode' });
+                if (upsertErr) throw upsertErr;
             } catch (cacheErr) {
                 console.warn('[Barcode] Failed to cache product:', cacheErr.message);
             }
@@ -104,10 +102,11 @@ router.post('/barcode-lookup', barcodeLimiter, async (req, res, next) => {
         // ─── Log scan history ────────────────────────────────
         if (userId) {
             try {
-                await query(
-                    'INSERT INTO scan_history (user_id, barcode, product_name, health_score, scan_type) VALUES ($1, $2, $3, $4, $5)',
-                    [userId, cleanBarcode, product.name, healthScore.score, 'barcode']
-                );
+                const { error: histErr } = await supabase.from('scan_history').insert({
+                    user_id: userId, barcode: cleanBarcode, product_name: product.name,
+                    health_score: healthScore.score, scan_type: 'barcode',
+                });
+                if (histErr) throw histErr;
             } catch (histErr) {
                 console.warn('[Barcode] Failed to log scan history:', histErr.message);
             }

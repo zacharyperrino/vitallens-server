@@ -1,7 +1,7 @@
 {
   "name": "vitallens-server",
   "version": "1.0.0",
-  "description": "VitalLens Product Scanner API \u2014 barcode lookup, OCR parsing, and health scoring",
+  "description": "VitalLens Product Scanner API — barcode lookup, OCR parsing, and health scoring",
   "main": "server.js",
   "type": "module",
   "scripts": {
@@ -29,7 +29,6 @@
     "jose": "^6.2.12",
     "morgan": "^1.10.0",
     "multer": "^2.3.0",
-    "pg": "^8.12.0",
     "stripe": "^22.1.1",
     "web-push": "^3.6.7",
     "zod": "^4.4.3"

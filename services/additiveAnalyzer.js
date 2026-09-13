@@ -2,7 +2,7 @@
 // Looks up additive classifications from the database and provides
 // risk analysis for a given set of E-codes.
 
-import { query } from '../db/pool.js';
+import { supabase } from '../db/supabase.js';
 
 /**
  * Analyze a list of additive E-codes against the database.
@@ -25,11 +25,12 @@ export async function analyzeAdditives(codes) {
     // Bulk lookup
     let rows = [];
     try {
-        const result = await query(
-            'SELECT * FROM additive_classifications WHERE code = ANY($1)',
-            [normalized]
-        );
-        rows = result.rows;
+        const { data, error } = await supabase
+            .from('additive_classifications')
+            .select('*')
+            .in('code', normalized);
+        if (error) throw error;
+        rows = data || [];
     } catch (err) {
         console.warn('[AdditiveAnalyzer] DB lookup failed, using fallback:', err.message);
     }
