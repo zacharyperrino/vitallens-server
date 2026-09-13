@@ -1,0 +1,28 @@
+name: Keep the free-tier database awake
+
+# Supabase pauses free projects after ~7 days without activity, which turns a
+# portfolio link into "failed to fetch". One request a day keeps it live.
+# Set the repo VARIABLE API_URL (e.g. https://vitallens-api.up.railway.app)
+# after deploying; the Supabase secrets are the same ones CI uses.
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    env:
+      API_URL: ${{ vars.API_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+    steps:
+      - name: Ping the API readiness probe (also wakes the API host)
+        if: ${{ env.API_URL != '' }}
+        run: curl -fsS --max-time 30 "$API_URL/api/ready"
+      - name: Touch Supabase directly (any REST call counts as activity)
+        if: ${{ env.SUPABASE_URL != '' }}
+        run: |
+          curl -fsS --max-time 30 -o /dev/null \
+            "$SUPABASE_URL/rest/v1/profiles?select=id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY"
