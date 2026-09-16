@@ -61,7 +61,9 @@ app.use(cors({
     origin: (origin, cb) => {
         // Allow same-origin/no-origin (mobile apps, curl) and allow-listed web origins.
         if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-        return cb(new Error('Not allowed by CORS'));
+        // Unknown origin: send no CORS headers (the browser blocks the read).
+        // Not an error — a stray origin must not produce 500s or Sentry noise.
+        return cb(null, false);
     },
     credentials: true,
 }));
