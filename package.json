@@ -1,13 +1,11 @@
 {
   "name": "vitallens-server",
   "version": "1.0.0",
-  "description": "VitalLens Product Scanner API — barcode lookup, OCR parsing, and health scoring",
+  "description": "VitalLens Product Scanner API \u2014 barcode lookup, OCR parsing, and health scoring",
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
+    "dev": "node --watch --import ./instrument.js server.js",
     "start": "node --import ./instrument.js server.js",
     "test": "vitest run --project unit",
     "test:watch": "vitest --project unit",
