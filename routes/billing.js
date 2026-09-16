@@ -11,7 +11,10 @@ import { supabase } from '../db/supabase.js';
 import { sendError } from '../utils/errors.js';
 
 const router = Router();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+// Billing is optional: without a Stripe key the checkout and webhook routes
+// answer 503 and the rest of the API boots normally (portfolio deploys).
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
+const BILLING_OFF = { error: 'Billing is not configured on this server.' };
 
 // ── Price IDs — create these in Stripe dashboard ──────────────
 // Replace with your actual Stripe price IDs after creating products
@@ -27,6 +30,7 @@ const PRICES = {
 // client-supplied userId — the webhook later grants premium to whatever id
 // lands in session metadata.
 router.post('/billing/create-checkout', requireAuth, async (req, res) => {
+    if (!stripe) return res.status(503).json(BILLING_OFF);
     try {
         const { plan = 'monthly', successUrl, cancelUrl } = req.body;
         const userId = req.user.id;
@@ -62,6 +66,7 @@ router.post('/billing/create-checkout', requireAuth, async (req, res) => {
 // ── POST /api/billing/webhook ─────────────────────────────────
 // Must use raw body — add express.raw middleware in server.js
 router.post('/billing/webhook', async (req, res) => {
+    if (!stripe) return res.status(503).json(BILLING_OFF);
     const sig = req.headers['stripe-signature'];
     let event;
 
